@@ -1,0 +1,176 @@
+{
+  "entities": {
+    "TaxReturn": {
+      "title": "TaxReturn",
+      "description": "Canadian T1 personal tax return document containing filing info, calculations, slips, and status",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the tax return record",
+          "maxLength": 128
+        },
+        "taxYear": {
+          "type": "number",
+          "description": "Taxation year of the return (e.g., 2025)"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Client identifier or filing file reference",
+          "maxLength": 64
+        },
+        "taxPreparerId": {
+          "type": "string",
+          "description": "EFILE tax preparer registration number",
+          "maxLength": 64
+        },
+        "province": {
+          "type": "string",
+          "description": "Taxation province or territory code (e.g., ON, BC, QC)",
+          "maxLength": 10
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle state of the tax return",
+          "enum": ["draft", "in_review", "filed", "assessed", "amended", "complete"]
+        },
+        "totalIncome": {
+          "type": "number",
+          "description": "Line 15000 total income in CAD"
+        },
+        "netIncome": {
+          "type": "number",
+          "description": "Line 23600 net income in CAD"
+        },
+        "taxableIncome": {
+          "type": "number",
+          "description": "Line 26000 taxable income in CAD"
+        },
+        "balanceOwingOrRefund": {
+          "type": "number",
+          "description": "Line 48400 refund or line 48500 balance owing in CAD"
+        },
+        "cloudSyncedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last cloud synchronization"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["id", "taxYear"]
+    },
+    "ClientFile": {
+      "title": "ClientFile",
+      "description": "Accountant multi-client dossier record",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "Unique client dossier identifier",
+          "maxLength": 64
+        },
+        "clientName": {
+          "type": "string",
+          "description": "Full legal name of the taxpayer client",
+          "maxLength": 128
+        },
+        "taxYear": {
+          "type": "number",
+          "description": "Current active tax year"
+        },
+        "province": {
+          "type": "string",
+          "description": "Province of residence",
+          "maxLength": 10
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the client return file",
+          "maxLength": 32
+        },
+        "cloudSyncedAt": {
+          "type": "string",
+          "description": "Timestamp of cloud backup"
+        }
+      },
+      "required": ["clientId"]
+    },
+    "VaultDocument": {
+      "title": "VaultDocument",
+      "description": "Secure tax document metadata stored in Document Management System",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document unique identifier",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the tax document",
+          "maxLength": 256
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Source file name",
+          "maxLength": 256
+        },
+        "category": {
+          "type": "string",
+          "description": "Tax document classification",
+          "maxLength": 64
+        },
+        "taxYear": {
+          "type": "number",
+          "description": "Applicable tax year"
+        },
+        "uploadedAt": {
+          "type": "string",
+          "description": "Upload ISO timestamp"
+        }
+      },
+      "required": ["id", "name"]
+    },
+    "SystemPing": {
+      "title": "SystemPing",
+      "description": "Firebase connection test ping document",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "description": "Application identifier",
+          "maxLength": 64
+        },
+        "pingEpoch": {
+          "type": "number",
+          "description": "Timestamp of ping in milliseconds"
+        },
+        "lastPingAt": {
+          "type": "string",
+          "description": "Server timestamp string"
+        }
+      },
+      "required": ["app"]
+    }
+  },
+  "firestore": {
+    "/taxReturns/{returnId}": {
+      "schema": "TaxReturn",
+      "description": "Collection of T1 Canadian tax returns"
+    },
+    "/clientFiles/{fileId}": {
+      "schema": "ClientFile",
+      "description": "Collection of client tax dossier records"
+    },
+    "/documents/{docId}": {
+      "schema": "VaultDocument",
+      "description": "Collection of encrypted tax documents metadata"
+    },
+    "/system/{pingId}": {
+      "schema": "SystemPing",
+      "description": "Health checks and connectivity pings"
+    }
+  }
+}

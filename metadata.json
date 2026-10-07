@@ -1,0 +1,6 @@
+{
+  "name": "TAX EASY FILLING APP — Canada",
+  "description": "TAX EASY FILLING APP — Canada: Professional-grade tax software for accountants, bookkeepers, and individuals. Supports AFR, EFILE, ReFILE, family returns, small business forms, DocuSign, and secure CRA submission.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

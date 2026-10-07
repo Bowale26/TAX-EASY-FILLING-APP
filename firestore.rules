@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net - Default Deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // System connectivity health check
+    match /system/{pingId} {
+      allow read, write: if isValidId(pingId);
+    }
+    match /test/{testId} {
+      allow read: if isValidId(testId);
+    }
+
+    // Tax returns collection
+    match /taxReturns/{returnId} {
+      allow read: if isValidId(returnId);
+      allow create, update: if isValidId(returnId);
+      allow delete: if isValidId(returnId);
+    }
+
+    // Multi-client CPA dossiers
+    match /clientFiles/{fileId} {
+      allow read: if isValidId(fileId);
+      allow create, update: if isValidId(fileId);
+      allow delete: if isValidId(fileId);
+    }
+
+    // Vault documents metadata
+    match /documents/{docId} {
+      allow read: if isValidId(docId);
+      allow create, update: if isValidId(docId);
+      allow delete: if isValidId(docId);
+    }
+
+    // Users and profile preferences
+    match /users/{userId} {
+      allow read, write: if isValidId(userId);
+    }
+  }
+}

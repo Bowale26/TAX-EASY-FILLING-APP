@@ -1,0 +1,679 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Keyframes for SyncStatusIndicator auto-save visual pulse animation */
+@keyframes autoSavePulseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(16, 185, 129, 0);
+    transform: scale(1.03);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes autoSaveWave {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+.animate-autosave-pulse {
+  animation: autoSavePulseGlow 1.4s ease-out infinite;
+}
+
+.animate-autosave-wave {
+  animation: autoSaveWave 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* 
+  Comprehensive Print Media Styles for Official Canadian Tax Documents & Summaries
+  Ensures the sidebar, navigation, and modal buttons are hidden for a pristine PDF / print output.
+  Injects an Official Tax Summary header, timestamp footer, and CSS counter-based pagination.
+*/
+@media print {
+  /* Counter-based page numbering in CSS stylesheet for multi-page documents */
+  body {
+    counter-reset: page-number;
+  }
+
+  .print-page-counter,
+  .print-page-number {
+    counter-increment: page-number;
+  }
+
+  .print-page-counter::after,
+  .print-page-number::after {
+    content: "Page " counter(page-number);
+  }
+
+  /* Standard CSS Paged Media Level 3 @page rule with margin boxes */
+  @page {
+    size: letter portrait;
+    margin: 20mm 15mm 20mm 15mm;
+
+    @top-center {
+      content: "OFFICIAL TAX SUMMARY — CANADA REVENUE AGENCY";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 8.5pt;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #064e3b;
+      border-bottom: 0.75pt solid #cbd5e1;
+      padding-bottom: 4pt;
+    }
+
+    @top-left {
+      content: "TAX EASY FILLING APP";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #0b1f3a;
+      border-bottom: 0.75pt solid #cbd5e1;
+      padding-bottom: 4pt;
+    }
+
+    @top-right {
+      content: "FORM T1 GENERAL • CONFIDENTIAL";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: #475569;
+      border-bottom: 0.75pt solid #cbd5e1;
+      padding-bottom: 4pt;
+    }
+
+    @bottom-left {
+      content: "Official Tax Summary • CRA NETFILE / EFILE Record • Retain for 6 Years";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7pt;
+      color: #64748b;
+      border-top: 0.75pt solid #cbd5e1;
+      padding-top: 4pt;
+    }
+
+    @bottom-center {
+      content: "Certified Tax Assessment Copy";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7pt;
+      color: #64748b;
+      border-top: 0.75pt solid #cbd5e1;
+      padding-top: 4pt;
+    }
+
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #0f172a;
+      border-top: 0.75pt solid #cbd5e1;
+      padding-top: 4pt;
+    }
+  }
+
+  /* Reset body and html container constraints */
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide sidebar, navigation bar, footer, and interactive control buttons */
+  #single-left-button-panel,
+  #left-panel-backdrop,
+  header,
+  footer,
+  aside,
+  nav,
+  button,
+  .no-print,
+  #mobile-menu-toggle,
+  [role="dialog"],
+  [aria-modal="true"],
+  .fixed.inset-0,
+  .backdrop-blur-md,
+  .backdrop-blur-xs,
+  .print-hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Expand main layout container to full page width by eliminating desktop sidebar offset */
+  .lg\:pl-84,
+  div[class*="lg:pl-84"],
+  main,
+  #step-history-view,
+  #step-review-view,
+  #step-review-print-preview,
+  #step-calculation-view,
+  #step-filing-view,
+  #step-income-view,
+  #step-documents-view,
+  #step-deductions-view,
+  #step-family-view {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Specific cleanup for StepReview & StepCalculation to eliminate all dark banners and UI clutter */
+  #step-review-view,
+  #step-calculation-view {
+    color: #0f172a !important;
+    background: transparent !important;
+  }
+
+  /* Transform dark gradient heroes into crisp, ink-efficient print headings */
+  #step-calculation-view .bg-linear-to-r,
+  #step-calculation-view div[class*="from-[#0b1f3a]"],
+  #step-review-view div[class*="from-[#0b1f3a]"] {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    border: 1.5pt solid #064e3b !important;
+    border-radius: 6pt !important;
+    padding: 12pt !important;
+  }
+
+  #step-calculation-view .bg-linear-to-r *,
+  #step-calculation-view div[class*="from-[#0b1f3a]"] * {
+    color: #0f172a !important;
+    text-shadow: none !important;
+  }
+
+  #step-calculation-view .text-emerald-300,
+  #step-calculation-view .text-blue-300,
+  #step-calculation-view .text-slate-300 {
+    color: #064e3b !important;
+    font-weight: 700 !important;
+  }
+
+  /* Clean up drop shadows and unnecessary effects for crisp printer output */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Cards and bordered containers */
+  .rounded-2xl {
+    border-radius: 6pt !important;
+    border: 1pt solid #cbd5e1 !important;
+    background: #ffffff !important;
+    margin-bottom: 10pt !important;
+    padding: 10pt 14pt !important;
+  }
+
+  #tax-insights-section {
+    border: 1.5pt solid #cbd5e1 !important;
+    background: #ffffff !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  #tax-insights-section table {
+    font-size: 8.5pt !important;
+  }
+
+  #tax-insights-section th,
+  #tax-insights-section td {
+    padding: 4pt 6pt !important;
+  }
+
+  /* Dedicated Print Mode for Printable QR Verification Slip */
+  body.printing-qr-slip {
+    background: #ffffff !important;
+  }
+
+  body.printing-qr-slip main,
+  body.printing-qr-slip header,
+  body.printing-qr-slip footer,
+  body.printing-qr-slip aside,
+  body.printing-qr-slip nav,
+  body.printing-qr-slip #single-left-button-panel {
+    display: none !important;
+  }
+
+  body.printing-qr-slip #printable-qr-modal-backdrop {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    backdrop-filter: none !important;
+  }
+
+  body.printing-qr-slip #printable-qr-modal-container {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.printing-qr-slip #printable-cpa-qr-sheet {
+    border: 2pt solid #064e3b !important;
+    background: #ffffff !important;
+    padding: 20pt !important;
+    margin: 10pt auto !important;
+    max-width: 480pt !important;
+  }
+
+  body.printing-qr-slip #printable-qr-modal-container button,
+  body.printing-qr-slip #printable-qr-modal-container .bg-slate-100.border-t {
+    display: none !important;
+  }
+
+  /* Final refund / owing banner in StepReview and Calculation */
+  #step-review-view .bg-\[\#064e3b\],
+  #step-review-view .bg-\[\#0b1f3a\],
+  #step-calculation-view .bg-\[\#064e3b\],
+  #step-calculation-view .bg-\[\#0b1f3a\] {
+    background: #f1f5f9 !important;
+    border: 1.5pt solid #064e3b !important;
+    color: #0f172a !important;
+  }
+
+  #step-review-view .bg-\[\#064e3b\] *,
+  #step-review-view .bg-\[\#0b1f3a\] * {
+    color: #0f172a !important;
+  }
+
+  #step-review-view .text-emerald-300 {
+    color: #064e3b !important;
+  }
+
+  /* Prevent page-breaks in the middle of official statement cards */
+  .print-avoid-break,
+  .break-inside-avoid,
+  article,
+  section,
+  .rounded-2xl,
+  #step-review-view > div,
+  #step-calculation-view > div {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Multi-page break controls & pagination */
+  .page-break,
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  /* Professional 'Official Tax Summary' Header Bar */
+  .print-official-header,
+  .print-official-tax-summary-header {
+    display: flex !important;
+    visibility: visible !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    border-bottom: 2pt solid #064e3b !important;
+    padding-bottom: 8pt !important;
+    margin-bottom: 14pt !important;
+    background: #ffffff !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  .print-official-header .header-badge {
+    font-size: 7.5pt !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.08em !important;
+    color: #064e3b !important;
+    text-transform: uppercase !important;
+  }
+
+  .print-official-header .header-title {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    font-size: 13pt !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.02em !important;
+    color: #0f172a !important;
+  }
+
+  /* Formal Timestamp & Pagination Footer Bar */
+  .print-official-footer,
+  .print-official-tax-summary-footer {
+    display: flex !important;
+    visibility: visible !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    border-top: 1.5pt solid #cbd5e1 !important;
+    padding-top: 6pt !important;
+    margin-top: 20pt !important;
+    background: #ffffff !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 7.5pt !important;
+    color: #64748b !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: avoid !important;
+    page-break-before: avoid !important;
+  }
+
+  .print-official-footer .footer-legal {
+    color: #475569 !important;
+    font-weight: 500 !important;
+  }
+
+  .print-official-footer .footer-meta {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12pt !important;
+  }
+
+  .print-official-footer .print-timestamp {
+    color: #334155 !important;
+    font-weight: 600 !important;
+  }
+
+  .print-official-footer .print-page-counter {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    padding-left: 8pt !important;
+    border-left: 1pt solid #cbd5e1 !important;
+  }
+
+  /* CSS-injected 'Official Tax Summary' Header when printing raw review views */
+  #step-review-view:not(:has(.print-official-header))::before,
+  #step-calculation-view:not(:has(.print-official-header))::before {
+    content: "OFFICIAL TAX SUMMARY  |  CANADA REVENUE AGENCY T1 GENERAL ASSESSMENT";
+    display: block;
+    text-align: center;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 9.5pt;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #064e3b;
+    padding: 6pt 10pt;
+    margin-bottom: 14pt;
+    background: #f8fafc !important;
+    border: 1.5pt solid #064e3b !important;
+    border-radius: 4pt;
+    text-transform: uppercase;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* CSS-injected Formal Timestamp & Pagination Footer */
+  #step-review-view:not(:has(.print-official-footer))::after,
+  #step-calculation-view:not(:has(.print-official-footer))::after {
+    counter-increment: page-number;
+    content: "Official Tax Summary • Certified CRA Assessment Record • Printed: " attr(data-timestamp) " • Confidential Tax Record • Page " counter(page-number);
+    display: block;
+    text-align: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 7.5pt;
+    color: #64748b;
+    margin-top: 18pt;
+    padding-top: 6pt;
+    border-top: 1pt solid #cbd5e1;
+    break-before: avoid !important;
+    page-break-before: avoid !important;
+  }
+
+  /* Monospace numbers in print */
+  .font-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-weight: 700 !important;
+  }
+
+  /* Class toggles */
+  .print-only {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* 
+    =============================================================================
+    PRINT WATERMARK SYSTEM (TOGGLEABLE: DRAFT vs OFFICIAL)
+    Allows users to toggle watermark inclusion; renders 'DRAFT' or 'OFFICIAL'
+    across each printed page based on CRA submission status.
+    =============================================================================
+  */
+  body[data-include-watermark="true"]::before,
+  html[data-include-watermark="true"]::before,
+  #step-review-view[data-include-watermark="true"]::before,
+  #step-review-print-preview[data-include-watermark="true"]::before {
+    content: attr(data-watermark-text);
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) rotate(-35deg) !important;
+    transform-origin: center center !important;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-size: 105pt !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.28em !important;
+    text-transform: uppercase !important;
+    pointer-events: none !important;
+    z-index: 9999 !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+    opacity: 0.13 !important;
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Draft status watermark styling */
+  body[data-include-watermark="true"][data-watermark-text="DRAFT"]::before,
+  html[data-include-watermark="true"][data-watermark-text="DRAFT"]::before,
+  [data-include-watermark="true"][data-watermark-text="DRAFT"]::before {
+    color: #475569 !important;
+    -webkit-text-stroke: 1.5pt #334155 !important;
+  }
+
+  /* Official CRA-certified status watermark styling */
+  body[data-include-watermark="true"][data-watermark-text="OFFICIAL"]::before,
+  html[data-include-watermark="true"][data-watermark-text="OFFICIAL"]::before,
+  [data-include-watermark="true"][data-watermark-text="OFFICIAL"]::before {
+    color: #064e3b !important;
+    -webkit-text-stroke: 2pt #064e3b !important;
+  }
+
+  /*
+    =============================================================================
+    PRINT QR CODE INJECTION VIA CSS PSEUDO-ELEMENTS
+    Injects a vector QR code encoding the cryptographic SHA-256 tax document hash
+    and CRA verification URL via the ::after pseudo-element to enhance document
+    authenticity and audit trail verification.
+    =============================================================================
+  */
+  .print-verification-qr,
+  .official-tax-qr-block,
+  [data-print-qr="true"] {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    gap: 8pt !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin: 0 auto !important;
+  }
+
+  /* Pseudo-element injection of QR code in print stylesheet */
+  .print-verification-qr::after,
+  .official-tax-qr-block::after,
+  [data-print-qr="true"]::after {
+    content: "" !important;
+    display: inline-block !important;
+    margin: auto !important;
+    align-self: center !important;
+    vertical-align: middle !important;
+    width: 22mm !important;
+    height: 22mm !important;
+    min-width: 68px !important;
+    min-height: 68px !important;
+    background-image: var(
+      --tax-document-qr,
+      url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2029%2029%22%20shape-rendering%3D%22crispEdges%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M0%200h29v29H0z%22%2F%3E%3Cpath%20fill%3D%22%23064e3b%22%20d%3D%22M0%200h7v7H0zm2%202h3v3H2zm20-2h7v7h-7zm2%202h3v3h-3zM0%2022h7v7H0zm2%202h3v3H2zm10-22h2v4h-2zm4%200h2v2h-2zm-2%204h4v2h-4zm-2%204h2v2h-2zm4%200h4v2h-4zm-2%202h2v2h-2zm-4%202h2v2h-2zm2%202h2v4h-2zm4-2h4v2h-4zm0%204h2v2h-2zm-6%202h2v2h-2zm4%200h2v4h-2zm-6%202h2v2h-2zm8%200h4v2h-4zm-2%202h2v2h-2z%22%2F%3E%3C%2Fsvg%3E")
+    ) !important;
+    background-repeat: no-repeat !important;
+    background-size: contain !important;
+    background-position: center center !important;
+    background-color: #ffffff !important;
+    border: 1pt solid #94a3b8 !important;
+    border-radius: 3pt !important;
+    padding: 2pt !important;
+    box-sizing: border-box !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    box-shadow: 0 0.5pt 1.5pt rgba(0, 0, 0, 0.08) !important;
+  }
+}
+
+/* On-screen Print Preview watermark rendering when enabled */
+#step-review-print-preview[data-include-watermark="true"] .watermark-preview-overlay {
+  display: flex !important;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  overflow: hidden;
+}
+
+#step-review-print-preview[data-include-watermark="true"] .watermark-preview-text {
+  transform: rotate(-35deg);
+  font-size: 5rem;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+}
+
+#step-review-print-preview[data-include-watermark="true"][data-watermark-text="DRAFT"] .watermark-preview-text {
+  color: rgba(148, 163, 184, 0.16);
+  -webkit-text-stroke: 1.5px rgba(100, 116, 139, 0.25);
+}
+
+#step-review-print-preview[data-include-watermark="true"][data-watermark-text="OFFICIAL"] .watermark-preview-text {
+  color: rgba(6, 78, 59, 0.14);
+  -webkit-text-stroke: 1.5px rgba(6, 78, 59, 0.3);
+}
+
+/* Container for on-screen verification QR code ensuring cross-browser centering */
+.print-verification-qr,
+.official-tax-qr-block,
+[data-print-qr="true"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Also support on-screen preview for the QR code pseudo-element with hover-state border transition and cross-browser centering */
+.print-verification-qr::after,
+.official-tax-qr-block::after,
+[data-print-qr="true"]::after {
+  content: "";
+  display: inline-block;
+  margin: auto;
+  align-self: center;
+  vertical-align: middle;
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  min-height: 64px;
+  background-image: var(
+    --tax-document-qr,
+    url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2029%2029%22%20shape-rendering%3D%22crispEdges%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M0%200h29v29H0z%22%2F%3E%3Cpath%20fill%3D%22%23064e3b%22%20d%3D%22M0%200h7v7H0zm2%202h3v3H2zm20-2h7v7h-7zm2%202h3v3h-3zM0%2022h7v7H0zm2%202h3v3H2zm10-22h2v4h-2zm4%200h2v2h-2zm-2%204h4v2h-4zm-2%204h2v2h-2zm4%200h4v2h-4zm-2%202h2v2h-2zm-4%202h2v2h-2zm2%202h2v4h-2zm4-2h4v2h-4zm0%204h2v2h-2zm-6%202h2v2h-2zm4%200h2v4h-2zm-6%202h2v2h-2zm8%200h4v2h-4zm-2%202h2v2h-2z%22%2F%3E%3C%2Fsvg%3E")
+  );
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center center;
+  background-color: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover-state border transition for when users preview it on-screen */
+.print-verification-qr:hover::after,
+.official-tax-qr-block:hover::after,
+[data-print-qr="true"]:hover::after {
+  border-color: #064e3b;
+  box-shadow: 0 0 0 3px rgba(6, 78, 59, 0.18), 0 4px 12px rgba(6, 78, 59, 0.15);
+  transform: translateY(-1px) scale(1.03);
+}
+
+/* When on-screen visibility is toggled off by user before printing */
+@media screen {
+  body[data-screen-qr="hidden"] .print-verification-qr,
+  [data-screen-qr="hidden"] .print-verification-qr,
+  .print-verification-qr.screen-qr-hidden {
+    display: none !important;
+  }
+}
+
+/* Smooth CSS transition for QR icon inside header watermark toggle button */
+#header-print-watermark-toggle-btn .header-qr-icon {
+  display: inline-block;
+  transform-origin: center center;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s ease,
+              opacity 0.3s ease,
+              filter 0.3s ease;
+  will-change: transform;
+}
+
+#header-print-watermark-toggle-btn[data-qr-visible="true"] .header-qr-icon {
+  transform: rotate(0deg);
+}
+
+#header-print-watermark-toggle-btn[data-qr-visible="false"] .header-qr-icon {
+  transform: rotate(180deg);
+}
+
+#header-print-watermark-toggle-btn .header-qr-icon-btn:hover .header-qr-icon {
+  filter: drop-shadow(0 2px 4px rgba(6, 78, 59, 0.25));
+}
+
+
