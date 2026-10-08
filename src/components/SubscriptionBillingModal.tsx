@@ -25,24 +25,42 @@ import {
   resetUserPassword,
   changeUserPassword,
   signOutUser,
+  subscribeWithPayPal,
+  registerWithFreeTrial,
+  upgradeUserToPaidSubscription,
+  getTrialStatus,
+  TrialStatusInfo,
+  resetTrialToFresh24Hours,
+  expireCurrentTrialForTesting,
 } from '../services/subscriptionAuthService';
 
 interface SubscriptionBillingModalProps {
   isOpen: boolean;
   onClose: () => void;
   language: 'en' | 'fr';
+  onUserUpdate?: (user: AuthUser | null) => void;
+  initialTab?: 'overview' | 'signin' | 'signup' | 'reset' | 'plans' | 'trial';
 }
 
 export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> = ({
   isOpen,
   onClose,
   language,
+  onUserUpdate,
+  initialTab,
 }) => {
   const isFrench = language === 'fr';
 
-  // Mode: 'overview' | 'signin' | 'signup' | 'reset'
-  const [activeTab, setActiveTab] = useState<'overview' | 'signin' | 'signup' | 'reset'>('overview');
+  // Mode: 'overview' | 'signin' | 'signup' | 'reset' | 'trial' | 'plans'
+  const [activeTab, setActiveTab] = useState<'overview' | 'signin' | 'signup' | 'reset' | 'trial' | 'plans'>('overview');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+
+  // 1-Day Free Trial Registration State
+  const [trialName, setTrialName] = useState<string>('');
+  const [trialEmail, setTrialEmail] = useState<string>('');
+  const [trialPassword, setTrialPassword] = useState<string>('');
+  const [trialConfirmPassword, setTrialConfirmPassword] = useState<string>('');
+  const [trialError, setTrialError] = useState<string | null>(null);
 
   // Sign In Form State
   const [signInEmail, setSignInEmail] = useState<string>('alex.morgan@example.ca');
@@ -77,21 +95,192 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
 
   // Success Feedback
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  const [paypalButtonLoaded, setPaypalButtonLoaded] = useState<boolean>(false);
+  const [paypalNotice, setPaypalNotice] = useState<string | null>(null);
+
+  // Payment Method: 'card' | 'paypal'
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal'>('paypal');
+  const [paypalPlanType, setPaypalPlanType] = useState<'monthly' | 'yearly'>('yearly');
+  const [paypalConfig, setPaypalConfig] = useState<{
+    isConfigured: boolean;
+    clientId?: string;
+    monthlyPlanId?: string;
+    yearlyPlanId?: string;
+    productId?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/paypal/config')
+      .then((res) => res.json())
+      .then((data) => setPaypalConfig(data))
+      .catch(() => {});
+  }, []);
+
+  const handlePayPalSubscriptionSuccess = (subscriptionId: string) => {
+    const res = subscribeWithPayPal({
+      subscriptionId,
+      name: signUpName.trim() || 'Alex Morgan',
+      email: signUpEmail.trim() || 'alex.morgan@example.ca',
+    });
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      if (onUserUpdate) onUserUpdate(res.user);
+      setActiveTab('overview');
+      setFeedbackNotice(
+        isFrench
+          ? `Abonnement PayPal réussi ! Réf: ${subscriptionId}`
+          : `PayPal Subscription successful! Subscription ID: ${subscriptionId}`
+      );
+      setTimeout(() => setFeedbackNotice(null), 6000);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'signup' || paymentMethod !== 'paypal') {
+      return;
+    }
+
+    // Support both the exact element query requested and the component state
+    const containerId = 'paypal-button-container';
+    let isCancelled = false;
+
+    const renderPayPalButtons = () => {
+      const container = document.getElementById(containerId);
+      if (!container || isCancelled) return;
+
+      const paypal = (window as any).paypal;
+      if (!paypal || !paypal.Buttons) {
+        setTimeout(renderPayPalButtons, 300);
+        return;
+      }
+
+      container.innerHTML = '';
+
+      try {
+        paypal.Buttons({
+          style: {
+            shape: 'rect',
+            color: 'blue',
+            layout: 'vertical',
+            label: 'subscribe',
+          },
+          createSubscription: async function (data: any, actions: any) {
+            try {
+              // 1. Query the currently checked plan at the moment of click
+              const selectedPlan =
+                (document.querySelector('input[name="plan"]:checked') as HTMLInputElement)?.value ||
+                paypalPlanType ||
+                'yearly';
+
+              // 2. Fetch the appropriate Plan ID from your backend
+              const res = await fetch('/api/create-subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ planType: selectedPlan }),
+              });
+
+              const details = await res.json();
+              const targetPlanId = details.planId || details.subscriptionID || paypalConfig?.yearlyPlanId || 'P-4AN642530G363490GNLDLQWI';
+
+              if (actions?.subscription?.create) {
+                return actions.subscription.create({
+                  plan_id: targetPlanId,
+                });
+              }
+              return details.subscriptionID || targetPlanId;
+            } catch (e) {
+              console.warn('createSubscription fallback to direct actions:', e);
+              return actions.subscription.create({
+                plan_id: paypalConfig?.yearlyPlanId || 'P-4AN642530G363490GNLDLQWI',
+              });
+            }
+          },
+          onApprove: function (data: any, actions: any) {
+            const subId = data?.subscriptionID || 'P-4AN642530G363490GNLDLQWI';
+            console.log('Subscription Successful! Subscription ID: ' + subId);
+            handlePayPalSubscriptionSuccess(subId);
+            // Non-blocking redirect / navigation update for Tax Filing features
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('subscription_id', subId);
+              window.history.pushState({}, '', url.pathname + url.search);
+            } catch (e) {}
+          },
+          onError: function (err: any) {
+            console.error('PayPal Checkout Error:', err);
+          },
+        }).render('#paypal-button-container');
+        setPaypalButtonLoaded(true);
+      } catch (err) {
+        console.warn('Error rendering PayPal Buttons:', err);
+      }
+    };
+
+    const timer = setTimeout(renderPayPalButtons, 120);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isOpen, activeTab, paymentMethod, paypalConfig, isFrench, signUpName, signUpEmail]);
 
   useEffect(() => {
     if (isOpen) {
       const user = getCurrentAuthUser();
       setCurrentUser(user);
-      if (user && user.isSubscribed) {
+      const trial = getTrialStatus(user);
+
+      if (initialTab) {
+        setActiveTab(initialTab);
+      } else if (trial.isExpired) {
+        // Expired trial automatically routes to plans/signup
+        setActiveTab('signup');
+      } else if (user && user.isSubscribed) {
         setActiveTab('overview');
       } else {
-        setActiveTab('signin');
+        setActiveTab('trial');
       }
+
       setSignInError(null);
       setSignUpError(null);
+      setTrialError(null);
       setResetError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab]);
+
+  // Handle 1-Day Free Trial Registration
+  const handleTrialRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTrialError(null);
+
+    if (trialPassword !== trialConfirmPassword) {
+      setTrialError(isFrench ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
+      return;
+    }
+    if (trialPassword.length < 6) {
+      setTrialError(isFrench ? 'Le mot de passe doit comporter au moins 6 caractères.' : 'Password must be at least 6 characters.');
+      return;
+    }
+
+    const res = registerWithFreeTrial({
+      name: trialName,
+      email: trialEmail,
+      password: trialPassword,
+    });
+
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      if (onUserUpdate) onUserUpdate(res.user);
+      setActiveTab('overview');
+      setFeedbackNotice(
+        isFrench
+          ? 'Essai gratuit de 1 jour activé avec succès ! Profitez de toutes les fonctionnalités.'
+          : '1-Day Free Trial successfully activated! Enjoy full unrestricted access for 24 hours.'
+      );
+      setTimeout(() => setFeedbackNotice(null), 4000);
+    } else {
+      setTrialError(res.error || 'Trial registration failed.');
+    }
+  };
 
   // Handle Sign In
   const handleSignInSubmit = (e: React.FormEvent) => {
@@ -100,6 +289,7 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
     const result = signInUser({ email: signInEmail, password: signInPassword });
     if (result.success && result.user) {
       setCurrentUser(result.user);
+      if (onUserUpdate) onUserUpdate(result.user);
       setActiveTab('overview');
       setFeedbackNotice(isFrench ? 'Connexion réussie !' : 'Welcome back! Signed in successfully.');
       setTimeout(() => setFeedbackNotice(null), 3500);
@@ -138,6 +328,7 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
 
       if (result.success && result.user) {
         setCurrentUser(result.user);
+        if (onUserUpdate) onUserUpdate(result.user);
         setActiveTab('overview');
         setFeedbackNotice(
           isFrench
@@ -204,6 +395,7 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
   const handleSignOut = () => {
     signOutUser();
     setCurrentUser(null);
+    if (onUserUpdate) onUserUpdate(null);
     setActiveTab('signin');
   };
 
@@ -254,7 +446,7 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
           </div>
 
           {/* Navigation Pill Tabs */}
-          <div className="flex border-b border-slate-200 bg-slate-50 px-6 py-2.5 gap-2 shrink-0">
+          <div className="flex flex-wrap border-b border-slate-200 bg-slate-50 px-6 py-2.5 gap-2 shrink-0">
             {currentUser && (
               <button
                 type="button"
@@ -265,20 +457,21 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                     : 'text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {isFrench ? 'Mon Abonnement' : 'Subscription Plan'}
+                {isFrench ? 'Mon Statut / Plan' : 'Plan Status'}
               </button>
             )}
 
             <button
               type="button"
-              onClick={() => setActiveTab('signin')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'signin'
-                  ? 'bg-[#064e3b] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200'
+              onClick={() => setActiveTab('trial')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+                activeTab === 'trial'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
               }`}
             >
-              {isFrench ? 'Connexion' : 'Sign In'}
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{isFrench ? 'Essai Gratuit 1 Jour' : '1-Day Free Trial'}</span>
             </button>
 
             <button
@@ -290,7 +483,19 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                   : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {isFrench ? 'Nouvel Abonné (29,99 $)' : 'Sign Up ($29.99/Yr)'}
+              {isFrench ? 'Abonnement Payant (29,99 $)' : 'Paid Plan ($29.99/Yr)'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('signin')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'signin'
+                  ? 'bg-[#064e3b] text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {isFrench ? 'Connexion' : 'Sign In'}
             </button>
           </div>
 
@@ -305,33 +510,110 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
           {/* Modal Body Container */}
           <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
             {/* VIEW 1: ACTIVE SUBSCRIPTION & BILLING OVERVIEW */}
-            {activeTab === 'overview' && currentUser && (
-              <div className="space-y-4">
-                {/* Active Plan Card */}
-                <div className="p-5 rounded-2xl bg-linear-to-br from-emerald-900 via-[#064e3b] to-[#0b1f3a] text-white shadow-md space-y-3 relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono tracking-widest text-emerald-300 uppercase px-2 py-0.5 rounded bg-black/30 border border-emerald-400/30">
-                      CURRENT PLAN
-                    </span>
-                    <span className="text-xs font-mono font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/40">
-                      ACTIVE PRO
-                    </span>
-                  </div>
+            {activeTab === 'overview' && currentUser && (() => {
+              const trialInfo = getTrialStatus(currentUser);
 
-                  <div>
-                    <h3 className="text-xl font-extrabold text-white">
-                      Tax Easy Filing Unlimited Pro
-                    </h3>
-                    <div className="text-2xl font-mono font-black text-emerald-200 mt-1">
-                      $29.99 <span className="text-xs font-normal text-slate-300">CAD / Year</span>
+              return (
+              <div className="space-y-4">
+                {/* Active Plan / Trial Card */}
+                {trialInfo.isTrial ? (
+                  <div className={`p-5 rounded-2xl text-white shadow-md space-y-3 relative overflow-hidden ${
+                    trialInfo.isExpired
+                      ? 'bg-linear-to-br from-rose-950 via-rose-900 to-slate-900'
+                      : trialInfo.isExpiringSoon
+                      ? 'bg-linear-to-br from-amber-950 via-amber-900 to-slate-900'
+                      : 'bg-linear-to-br from-emerald-950 via-[#064e3b] to-[#0b1f3a]'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono tracking-widest text-amber-300 uppercase px-2 py-0.5 rounded bg-black/40 border border-amber-400/30">
+                        {isFrench ? 'ACCÈS ESSAI 24 HEURES' : '24-HOUR TRIAL ACCESS'}
+                      </span>
+                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
+                        trialInfo.isExpired
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-400/40'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                      }`}>
+                        {trialInfo.isExpired
+                          ? (isFrench ? 'ESSAI EXPIRÉ' : 'TRIAL EXPIRED')
+                          : (isFrench ? 'ESSAI EN COURS' : 'TRIAL ACTIVE')}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-extrabold text-white">
+                        {isFrench ? 'Essai Gratuit de 1 Jour (Accès Complet)' : '1-Day Free Trial (Full App Access)'}
+                      </h3>
+                      <div className="flex items-center space-x-3 mt-2">
+                        <span className="text-xs text-white/80">{isFrench ? 'Temps restant :' : 'Remaining time:'}</span>
+                        <span className="text-xl font-mono font-black text-amber-200 bg-black/40 px-3 py-1 rounded-lg border border-white/10">
+                          {trialInfo.formattedRemaining}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Trial Progress Bar */}
+                    <div className="space-y-1">
+                      <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden border border-white/10">
+                        <div
+                          className={`h-full transition-all duration-500 ${
+                            trialInfo.isExpired
+                              ? 'bg-rose-500'
+                              : trialInfo.isExpiringSoon
+                              ? 'bg-amber-400'
+                              : 'bg-emerald-400'
+                          }`}
+                          style={{ width: `${trialInfo.progressPercent}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-white/70 font-mono">
+                        <span>{isFrench ? 'Début de l’essai' : 'Trial Start'}</span>
+                        <span>{trialInfo.isExpired ? (isFrench ? 'Expiré' : 'Expired') : (isFrench ? 'Fin des 24h' : '24h Expiration')}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/15 flex items-center justify-between text-xs">
+                      <span className="text-white/80">
+                        {trialInfo.isExpired
+                          ? (isFrench ? 'Abonnement requis pour continuer' : 'Paid plan required to restore access')
+                          : (isFrench ? 'Expire le :' : 'Expires on:') + ` ${currentUser.renewDate}`}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('signup')}
+                        className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center space-x-1 cursor-pointer transition-transform active:scale-95"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>{isFrench ? 'Passer au Forfait Pro' : 'Upgrade to Pro'}</span>
+                      </button>
                     </div>
                   </div>
+                ) : (
+                  <div className="p-5 rounded-2xl bg-linear-to-br from-emerald-900 via-[#064e3b] to-[#0b1f3a] text-white shadow-md space-y-3 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono tracking-widest text-emerald-300 uppercase px-2 py-0.5 rounded bg-black/30 border border-emerald-400/30">
+                        CURRENT PLAN
+                      </span>
+                      <span className="text-xs font-mono font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/40">
+                        ACTIVE PRO
+                      </span>
+                    </div>
 
-                  <div className="pt-2 border-t border-white/15 flex items-center justify-between text-xs text-slate-300">
-                    <span>{isFrench ? 'Renouvellement automatique le :' : 'Next billing date:'} <strong>{currentUser.renewDate}</strong></span>
-                    <span>{currentUser.cardBrand} •••• {currentUser.cardLast4}</span>
+                    <div>
+                      <h3 className="text-xl font-extrabold text-white">
+                        Tax Easy Filing Unlimited Pro
+                      </h3>
+                      <div className="text-2xl font-mono font-black text-emerald-200 mt-1">
+                        $29.99 <span className="text-xs font-normal text-slate-300">CAD / Year</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/15 flex items-center justify-between text-xs text-slate-300">
+                      <span>{isFrench ? 'Renouvellement automatique le :' : 'Next billing date:'} <strong>{currentUser.renewDate}</strong></span>
+                      <span>{currentUser.cardBrand} •••• {currentUser.cardLast4}</span>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Account Details */}
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
@@ -449,6 +731,136 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+              );
+            })()}
+
+            {/* VIEW: 1-DAY FREE TRIAL REGISTRATION */}
+            {activeTab === 'trial' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-linear-to-r from-amber-500/15 via-emerald-500/15 to-teal-500/15 border border-amber-300 space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="p-1 rounded-md bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">
+                      1-DAY FREE TRIAL
+                    </span>
+                    <span className="text-xs font-bold text-amber-900">
+                      {isFrench ? 'Aucune carte de crédit requise pour commencer' : 'No credit card required upfront'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-extrabold text-[#0b1f3a]">
+                    {isFrench ? 'Activez votre essai gratuit de 24 heures' : 'Activate Your 24-Hour Free Trial'}
+                  </h3>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    {isFrench
+                      ? 'Tous les nouveaux utilisateurs bénéficient d’un accès complet gratuit pendant 24 heures pour préparer leurs déclarations T1, extraire leurs feuillets par IA et explorer toutes les fonctionnalités.'
+                      : 'Every new user receives 24 hours of unrestricted, complimentary access to prepare Canadian T1 tax returns, run AI OCR slip extraction, and test all premium features.'}
+                  </p>
+                </div>
+
+                {trialError && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{trialError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleTrialRegisterSubmit} className="space-y-3.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {isFrench ? 'Nom complet' : 'Full Name'}
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={trialName}
+                        onChange={(e) => setTrialName(e.target.value)}
+                        placeholder="Alex Morgan"
+                        className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      {isFrench ? 'Courriel' : 'Email Address'}
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        value={trialEmail}
+                        onChange={(e) => setTrialEmail(e.target.value)}
+                        placeholder="taxpayer@example.ca"
+                        className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        {isFrench ? 'Mot de passe' : 'Password (min. 6)'}
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="password"
+                          value={trialPassword}
+                          onChange={(e) => setTrialPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        {isFrench ? 'Confirmer' : 'Confirm Password'}
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="password"
+                          value={trialConfirmPassword}
+                          onChange={(e) => setTrialConfirmPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-linear-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-200" />
+                    <span>
+                      {isFrench
+                        ? 'Activer mon essai gratuit de 1 jour (0,00 $)'
+                        : 'Activate 1-Day Free Trial ($0.00 CAD)'}
+                    </span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+
+                <div className="pt-2 text-center text-xs text-slate-500 space-y-1">
+                  <p>
+                    {isFrench ? 'Vous préférez vous abonner directement ?' : 'Ready to subscribe immediately?'}{' '}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('signup')}
+                      className="text-emerald-700 font-bold hover:underline cursor-pointer"
+                    >
+                      {isFrench ? 'Forfait Annuel Pro (29,99 $/an)' : 'Annual Pro Plan ($29.99/Yr)'}
+                    </button>
+                  </p>
                 </div>
               </div>
             )}
@@ -663,66 +1075,213 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                       </span>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        {isFrench ? 'Numéro de carte' : 'Card Number'}
-                      </label>
-                      <div className="relative">
-                        <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={cardNumber}
-                          onChange={(e) => setCardNumber(e.target.value)}
-                          placeholder="4242 •••• •••• 4242"
-                          className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono"
-                          required
-                        />
-                      </div>
+                    {/* Payment Method Switcher */}
+                    <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('card')}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                          paymentMethod === 'card'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>{isFrench ? 'Carte de crédit' : 'Credit Card'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('paypal')}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                          paymentMethod === 'paypal'
+                            ? 'bg-[#003087] text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className="font-black italic text-xs tracking-tight">Pay<span className="text-[#0079C1]">Pal</span></span>
+                        <span>{isFrench ? 'Abonnement' : 'Express'}</span>
+                      </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          {isFrench ? 'Expiration (MM/AA)' : 'Expiry (MM/YY)'}
-                        </label>
-                        <input
-                          type="text"
-                          value={cardExpiry}
-                          onChange={(e) => setCardExpiry(e.target.value)}
-                          placeholder="12/28"
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono"
-                          required
-                        />
+                    {paymentMethod === 'card' ? (
+                      <>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            {isFrench ? 'Numéro de carte' : 'Card Number'}
+                          </label>
+                          <div className="relative">
+                            <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={cardNumber}
+                              onChange={(e) => setCardNumber(e.target.value)}
+                              placeholder="4242 •••• •••• 4242"
+                              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono"
+                              required={paymentMethod === 'card'}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              {isFrench ? 'Expiration (MM/AA)' : 'Expiry (MM/YY)'}
+                            </label>
+                            <input
+                              type="text"
+                              value={cardExpiry}
+                              onChange={(e) => setCardExpiry(e.target.value)}
+                              placeholder="12/28"
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono"
+                              required={paymentMethod === 'card'}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              CVC / CVV
+                            </label>
+                            <input
+                              type="text"
+                              value={cardCvc}
+                              onChange={(e) => setCardCvc(e.target.value)}
+                              placeholder="842"
+                              className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono"
+                              required={paymentMethod === 'card'}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Plan selection radio buttons for createSubscription query */}
+                        <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-xl">
+                          <label
+                            className={`flex flex-col p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                              paypalPlanType === 'monthly'
+                                ? 'bg-white border-blue-500 shadow-xs'
+                                : 'bg-transparent border-transparent hover:bg-white/60'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-bold text-slate-800">
+                                {isFrench ? 'Mensuel' : 'Monthly'}
+                              </span>
+                              <input
+                                type="radio"
+                                name="plan"
+                                value="monthly"
+                                checked={paypalPlanType === 'monthly'}
+                                onChange={() => setPaypalPlanType('monthly')}
+                                className="accent-blue-600 w-3.5 h-3.5 cursor-pointer"
+                              />
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-blue-700">
+                              $9.99 CAD / mo
+                            </span>
+                          </label>
+
+                          <label
+                            className={`flex flex-col p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                              paypalPlanType === 'yearly'
+                                ? 'bg-white border-emerald-500 shadow-xs ring-1 ring-emerald-400/40'
+                                : 'bg-transparent border-transparent hover:bg-white/60'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                                <span>{isFrench ? 'Annuel' : 'Yearly'}</span>
+                                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-semibold">
+                                  Save 75%
+                                </span>
+                              </span>
+                              <input
+                                type="radio"
+                                name="plan"
+                                value="yearly"
+                                checked={paypalPlanType === 'yearly'}
+                                onChange={() => setPaypalPlanType('yearly')}
+                                className="accent-emerald-600 w-3.5 h-3.5 cursor-pointer"
+                              />
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-emerald-700">
+                              $29.99 CAD / yr
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-blue-950 flex items-center space-x-1.5">
+                              <span className="font-black italic text-blue-800 text-sm">PayPal</span>
+                              <span>
+                                {paypalPlanType === 'yearly'
+                                  ? (isFrench ? 'Abonnement Annuel Pro' : 'Annual Pro Subscription')
+                                  : (isFrench ? 'Abonnement Mensuel Pro' : 'Monthly Pro Subscription')}
+                              </span>
+                            </span>
+                            <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-mono font-bold">
+                              {paypalPlanType === 'yearly' ? '$29.99 CAD / Year' : '$9.99 CAD / Month'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-blue-900 leading-normal">
+                            {isFrench
+                              ? 'Abonnement récurrent sécurisé via le bouton officiel PayPal. Prélèvement automatique sécurisé.'
+                              : 'Secure recurring subscription via the official PayPal button. Safe automated billing.'}
+                          </p>
+                          <div className="text-[10px] text-blue-700 font-mono flex items-center justify-between">
+                            <span>
+                              Plan ID: {paypalPlanType === 'yearly'
+                                ? (paypalConfig?.yearlyPlanId || 'P-4AN642530G363490GNLDLQWI')
+                                : (paypalConfig?.monthlyPlanId || 'P-4AN642530G363490GNLDLQWI')}
+                            </span>
+                            <span className="text-emerald-700 font-bold">Vault Active</span>
+                          </div>
+                        </div>
+
+                        {/* Official PayPal Button Container matching both selectors */}
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col items-center justify-center min-h-[58px]">
+                          <div
+                            id="paypal-button-container"
+                            className="w-full flex items-center justify-center min-h-[46px]"
+                          ></div>
+                          <div
+                            id="paypal-button-container-P-4AN642530G363490GNLDLQWI"
+                            className="hidden"
+                          ></div>
+
+                          {/* Instant subscriber confirmation test option */}
+                          <button
+                            type="button"
+                            onClick={() => handlePayPalSubscriptionSuccess(paypalPlanType === 'yearly' ? 'P-4AN642530G363490GNLDLQWI' : 'SUB-MONTHLY-ACTIVE')}
+                            className="mt-3 text-[11px] text-blue-700 hover:text-blue-900 font-medium underline flex items-center space-x-1 cursor-pointer"
+                          >
+                            <span>
+                              {isFrench
+                                ? `Activer / Confirmer l’abonnement (${paypalPlanType === 'yearly' ? 'Annuel 29,99 $' : 'Mensuel 9,99 $'})`
+                                : `Activate / Confirm Subscription (${paypalPlanType === 'yearly' ? 'Yearly $29.99' : 'Monthly $9.99'})`}
+                            </span>
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          CVC / CVV
-                        </label>
-                        <input
-                          type="text"
-                          value={cardCvc}
-                          onChange={(e) => setCardCvc(e.target.value)}
-                          placeholder="842"
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono"
-                          required
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
 
-                  <button
-                    type="submit"
-                    id="btn-submit-signup-payment"
-                    disabled={isProcessingPayment}
-                    className="w-full py-3 rounded-xl bg-[#064e3b] hover:bg-[#054030] text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 mt-2"
-                  >
-                    <Lock className="w-4 h-4 text-emerald-300" />
-                    <span>
-                      {isProcessingPayment
-                        ? (isFrench ? 'Traitement du paiement sécurisé...' : 'Processing Payment...')
-                        : (isFrench ? 'Payer 29,99 $ & Déverrouiller l’Application' : 'Pay $29.99 CAD & Grant Access')}
-                    </span>
-                  </button>
+                  {paymentMethod === 'card' && (
+                    <button
+                      type="submit"
+                      id="btn-submit-signup-payment"
+                      disabled={isProcessingPayment}
+                      className="w-full py-3 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 mt-2 bg-[#064e3b] hover:bg-[#054030]"
+                    >
+                      <Lock className="w-4 h-4 text-white" />
+                      <span>
+                        {isProcessingPayment
+                          ? (isFrench ? 'Traitement du paiement sécurisé...' : 'Processing Payment...')
+                          : (isFrench ? 'Payer 29,99 $ & Déverrouiller l’Application' : 'Pay $29.99 CAD & Grant Access')}
+                      </span>
+                    </button>
+                  )}
                 </form>
 
                 <div className="text-center text-xs text-slate-500">

@@ -49,6 +49,14 @@ import { AuditTrailDashboardModal } from './components/AuditTrailDashboardModal'
 import { ClientFileManagerModal } from './components/ClientFileManagerModal';
 import { SubscriptionBillingModal } from './components/SubscriptionBillingModal';
 import { FirebaseModal } from './components/FirebaseModal';
+import { TrialBanner } from './components/TrialBanner';
+import { TrialExpiredPaywall } from './components/TrialExpiredPaywall';
+import {
+  AuthUser,
+  getCurrentAuthUser,
+  getTrialStatus,
+  TrialStatusInfo,
+} from './services/subscriptionAuthService';
 import { downloadFullReturnPdf } from './utils/pdfReturnExport';
 import {
   Menu,
@@ -207,8 +215,27 @@ export default function App() {
   const [isAuditDashboardOpen, setIsAuditDashboardOpen] = useState<boolean>(false);
   const [isClientFilesOpen, setIsClientFilesOpen] = useState<boolean>(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState<boolean>(false);
+  const [subscriptionInitialTab, setSubscriptionInitialTab] = useState<'overview' | 'signin' | 'signup' | 'trial'>('overview');
   const [isFirebaseOpen, setIsFirebaseOpen] = useState<boolean>(false);
   const [autoSavePulse, setAutoSavePulse] = useState<number>(0);
+
+  // Authentication & 1-Day Free Trial State
+  const [currentAuthUser, setCurrentAuthUser] = useState<AuthUser | null>(() => getCurrentAuthUser());
+  const [trialStatus, setTrialStatus] = useState<TrialStatusInfo>(() => getTrialStatus(getCurrentAuthUser()));
+
+  // Dynamic 1-second interval to keep trial remaining time ticking
+  useEffect(() => {
+    const checkTrial = () => {
+      const user = getCurrentAuthUser();
+      setCurrentAuthUser(user);
+      const status = getTrialStatus(user);
+      setTrialStatus(status);
+    };
+
+    checkTrial();
+    const interval = setInterval(checkTrial, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Recalculate deterministic tax return on any changes
   const computedCalculation = useMemo(() => {
@@ -1133,17 +1160,61 @@ export default function App() {
               </span>
             </button>
 
-            {/* Quick Access: Subscription & Billing */}
+            {/* Quick Access: Subscription & Billing with dynamic Trial Status badge */}
             <button
               id="header-subscription-btn"
-              onClick={() => setIsSubscriptionOpen(true)}
-              title={isFrench ? 'Abonnement et Facturation ($29.99/an)' : 'Subscription & Billing ($29.99/yr)'}
-              className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#064e3b] border border-emerald-300 transition-colors flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+              onClick={() => {
+                setSubscriptionInitialTab(trialStatus.isExpired ? 'signup' : 'overview');
+                setIsSubscriptionOpen(true);
+              }}
+              title={
+                trialStatus.hasPaidSubscription
+                  ? (isFrench ? 'Abonnement Pro Actif (29,99 $/an)' : 'Pro Subscription Active ($29.99/yr)')
+                  : trialStatus.isExpired
+                  ? (isFrench ? 'Essai expiré — Choisir un forfait' : 'Trial Expired — Select Plan')
+                  : (isFrench ? `Essai gratuit actif (${trialStatus.formattedRemaining})` : `Free Trial Active (${trialStatus.formattedRemaining})`)
+              }
+              className={`p-2 sm:px-3 sm:py-2 rounded-xl border transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs ${
+                trialStatus.hasPaidSubscription
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-[#064e3b] border-emerald-300'
+                  : trialStatus.isExpired
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                  : trialStatus.isExpiringSoon
+                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-[#064e3b] border-emerald-300'
+              }`}
             >
-              <CreditCard className="w-4 h-4 text-[#064e3b]" />
-              <span className="text-xs font-bold hidden md:inline">
-                {isFrench ? 'Abonnement' : 'Subscription'}
-              </span>
+              <CreditCard className={`w-4 h-4 ${
+                trialStatus.hasPaidSubscription
+                  ? 'text-[#064e3b]'
+                  : trialStatus.isExpired
+                  ? 'text-rose-600'
+                  : trialStatus.isExpiringSoon
+                  ? 'text-amber-600'
+                  : 'text-[#064e3b]'
+              }`} />
+              <div className="flex flex-col text-left">
+                <span className="text-xs font-bold leading-tight">
+                  {trialStatus.hasPaidSubscription
+                    ? (isFrench ? 'Pro Actif' : 'Pro Active')
+                    : trialStatus.isExpired
+                    ? (isFrench ? 'Essai Expiré' : 'Trial Expired')
+                    : (isFrench ? 'Essai 1-Jour' : '1-Day Trial')}
+                </span>
+                {!trialStatus.hasPaidSubscription && (
+                  <span className={`text-[9px] font-mono font-bold leading-none ${
+                    trialStatus.isExpired
+                      ? 'text-rose-700'
+                      : trialStatus.isExpiringSoon
+                      ? 'text-amber-700'
+                      : 'text-emerald-700'
+                  }`}>
+                    {trialStatus.isExpired
+                      ? (isFrench ? 'Renouveler' : 'Upgrade')
+                      : trialStatus.formattedRemaining.slice(0, 7)}
+                  </span>
+                )}
+              </div>
             </button>
 
             {/* Print Tax Summary Button (Native Print / PDF Generation) with Watermark & QR Indicator */}
@@ -1552,17 +1623,47 @@ export default function App() {
           </div>
         </header>
 
-        {/* Step Body Content */}
+        {/* 1-Day Free Trial Active or Expired Top Banner */}
+        <TrialBanner
+          currentUser={currentAuthUser}
+          onOpenSubscription={() => {
+            setSubscriptionInitialTab(trialStatus.isExpired ? 'signup' : 'overview');
+            setIsSubscriptionOpen(true);
+          }}
+          language={language}
+          onUserUpdate={(updated) => {
+            setCurrentAuthUser(updated);
+            setTrialStatus(getTrialStatus(updated));
+          }}
+        />
+
+        {/* Step Body Content with Trial Restriction Paywall */}
         <main
           className="flex-1 p-4 sm:p-8 max-w-6xl w-full mx-auto"
           data-include-watermark={includeWatermark ? 'true' : 'false'}
           data-watermark-text={verificationData?.watermarkText || 'DRAFT'}
         >
-          {/* Professional 'Official Tax Summary' Header (Injected exclusively in print/PDF output) */}
-          <div
-            id="print-official-tax-summary-header"
-            className="hidden print-only print-official-header print-official-tax-summary-header mb-6 pb-3 border-b-2 border-[#064e3b]"
-          >
+          {/* If the 1-Day Free Trial has expired and user lacks paid subscription, restrict access */}
+          {trialStatus.isExpired && !trialStatus.hasPaidSubscription ? (
+            <TrialExpiredPaywall
+              currentUser={currentAuthUser}
+              onOpenSubscriptionModal={() => {
+                setSubscriptionInitialTab('signup');
+                setIsSubscriptionOpen(true);
+              }}
+              language={language}
+              onUserUpdate={(updated) => {
+                setCurrentAuthUser(updated);
+                setTrialStatus(getTrialStatus(updated));
+              }}
+            />
+          ) : (
+            <>
+              {/* Professional 'Official Tax Summary' Header (Injected exclusively in print/PDF output) */}
+              <div
+                id="print-official-tax-summary-header"
+                className="hidden print-only print-official-header print-official-tax-summary-header mb-6 pb-3 border-b-2 border-[#064e3b]"
+              >
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-lg bg-[#064e3b] text-white flex items-center justify-center font-bold text-xs shrink-0">
                 CRA
@@ -1779,6 +1880,8 @@ export default function App() {
               </span>
             </div>
           </div>
+          </>
+          )}
         </main>
 
         {/* Footer */}
@@ -1913,11 +2016,16 @@ export default function App() {
         language={language}
       />
 
-      {/* Subscription & Billing Modal ($29.99/Year Pro Access, Sign Up & Sign In, Password Reset) */}
+      {/* Subscription & Billing Modal ($29.99/Year Pro Access, Sign Up & Sign In, 1-Day Trial, Password Reset) */}
       <SubscriptionBillingModal
         isOpen={isSubscriptionOpen}
         onClose={() => setIsSubscriptionOpen(false)}
         language={language}
+        initialTab={subscriptionInitialTab}
+        onUserUpdate={(updated) => {
+          setCurrentAuthUser(updated);
+          setTrialStatus(getTrialStatus(updated));
+        }}
       />
 
       {/* Google Cloud Firebase Firestore Live Sync & Database Modal */}

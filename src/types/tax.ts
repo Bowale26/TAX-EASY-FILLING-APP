@@ -332,6 +332,7 @@ export interface AppTaxReturn {
   clientId?: string;
   clientNotes?: string;
   clientStatus?: 'Active' | 'Review' | 'Filed' | 'Archived';
+  cloudSyncedAt?: string;
   updatedAt: string;
 }
 
