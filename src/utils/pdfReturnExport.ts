@@ -24,6 +24,7 @@ export interface PdfExportOptions {
   signatureDataUrl?: string;
   signatureName?: string;
   signatureDate?: string;
+  printMarginPreset?: 'standard' | 'compact' | 'wide';
 }
 
 export function generateFullReturnPdf(
@@ -44,8 +45,11 @@ export function generateFullReturnPdf(
 
   const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
   const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
-  const margin = 14;
-  const contentWidth = pageWidth - margin * 2; // 182mm
+  
+  // Print Margin Presets: Compact (8mm), Standard (14mm), Wide (20mm)
+  const marginPreset = options.printMarginPreset || 'standard';
+  const margin = marginPreset === 'compact' ? 8 : marginPreset === 'wide' ? 20 : 14;
+  const contentWidth = pageWidth - margin * 2;
 
   const p = taxReturn.personal;
   const calc = taxReturn.calculation;
@@ -764,6 +768,7 @@ export function downloadFullReturnPdf(
     signatureDataUrl: isSigEnabled ? (options.signatureDataUrl || storedSettings.signatureDataUrl) : undefined,
     signatureName: isSigEnabled ? (options.signatureName || storedSettings.typedSignatureText) : undefined,
     signatureDate: options.signatureDate || storedSettings.signDate,
+    printMarginPreset: options.printMarginPreset || storedSettings.printMarginPreset || 'standard',
   };
 
   const doc = generateFullReturnPdf(taxReturn, mergedOptions);

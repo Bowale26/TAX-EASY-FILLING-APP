@@ -114,20 +114,22 @@ export const TrialBanner: React.FC<TrialBannerProps> = ({
 
   // State: Active 1-Day Trial
   const isUrgent = trialStatus.isExpiringSoon;
+  const progressPercent = Math.min(100, Math.max(0, trialStatus.progressPercent || 0));
 
   return (
     <div
-      className={`border-b text-white px-4 py-2.5 transition-colors shadow-xs ${
+      id="header-trial-progress-banner"
+      className={`border-b text-white transition-colors shadow-xs ${
         isUrgent
-          ? 'bg-amber-900 border-amber-700'
-          : 'bg-linear-to-r from-emerald-950 via-[#064e3b] to-teal-950 border-emerald-800'
+          ? 'bg-amber-950/95 border-amber-800'
+          : 'bg-linear-to-r from-[#03231a] via-[#064e3b] to-[#082f49] border-emerald-800/80'
       }`}
     >
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2.5">
-        <div className="flex items-center space-x-3">
+      <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-col md:flex-row items-center justify-between gap-2.5">
+        <div className="flex items-center space-x-3 min-w-0">
           <div
-            className={`p-1.5 rounded-lg shrink-0 ${
-              isUrgent ? 'bg-amber-800 text-amber-300' : 'bg-emerald-900 text-emerald-300'
+            className={`p-2 rounded-xl shrink-0 shadow-inner ${
+              isUrgent ? 'bg-amber-800/90 text-amber-300' : 'bg-emerald-900/90 text-emerald-300'
             }`}
           >
             {isUrgent ? (
@@ -137,34 +139,34 @@ export const TrialBanner: React.FC<TrialBannerProps> = ({
             )}
           </div>
 
-          <div>
-            <div className="flex items-center space-x-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border shadow-2xs ${
                   isUrgent
-                    ? 'bg-amber-950 text-amber-300 border-amber-800'
-                    : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                    ? 'bg-amber-900/90 text-amber-200 border-amber-600'
+                    : 'bg-emerald-950/90 text-emerald-200 border-emerald-600'
                 }`}
               >
                 {isFrench ? 'ESSAI GRATUIT 1 JOUR ACTIF' : '1-DAY FREE TRIAL ACTIVE'}
               </span>
-              <span className="text-xs sm:text-sm font-semibold">
+              <span className="text-xs sm:text-sm font-semibold truncate text-white">
                 {isUrgent
                   ? isFrench
                     ? 'Attention : votre essai gratuit expire très bientôt !'
                     : 'Urgent: Your free trial access is expiring soon!'
                   : isFrench
-                  ? 'Accès complet gratuit à l’application fiscale'
-                  : 'Full complimentary access to Tax Easy Filing'}
+                  ? 'Accès complet gratuit à l’application fiscale (24 heures)'
+                  : 'Full unrestricted access to Tax Easy Filing (24 hours)'}
               </span>
             </div>
-            <div className="flex items-center space-x-2 text-xs opacity-90 mt-0.5">
-              <span>{isFrench ? 'Temps restant :' : 'Remaining trial time:'}</span>
-              <span className="font-mono font-bold bg-black/40 px-2 py-0.5 rounded text-amber-200 border border-white/10">
+            <div className="flex flex-wrap items-center gap-2 text-xs opacity-90 mt-0.5">
+              <span className="text-white/80">{isFrench ? 'Temps restant :' : 'Remaining trial time:'}</span>
+              <span className="font-mono font-bold bg-black/50 px-2.5 py-0.5 rounded-lg text-amber-200 border border-white/10 shadow-inner">
                 {trialStatus.formattedRemaining}
               </span>
-              <span className="hidden sm:inline text-white/70">
-                ({isFrench ? 'Expire le' : 'Expires'}{' '}
+              <span className="hidden sm:inline text-white/70 font-mono text-[11px]">
+                ({progressPercent}% {isFrench ? 'écoulé' : 'elapsed'} • {isFrench ? 'Expire' : 'Expires'}{' '}
                 {currentUser?.trialExpiresAt
                   ? new Date(currentUser.trialExpiresAt).toLocaleTimeString([], {
                       hour: '2-digit',
@@ -183,9 +185,9 @@ export const TrialBanner: React.FC<TrialBannerProps> = ({
           <button
             onClick={handleSimulateExpire}
             title={isFrench ? 'Simuler expiration pour test' : 'Simulate trial expiration for testing'}
-            className="px-2 py-1 rounded bg-black/30 hover:bg-black/50 text-[11px] font-mono text-white/80 border border-white/10 flex items-center space-x-1"
+            className="px-2.5 py-1.5 rounded-lg bg-black/40 hover:bg-black/60 text-[11px] font-mono text-white/80 border border-white/15 flex items-center space-x-1 cursor-pointer transition-colors"
           >
-            <FastForward className="w-3 h-3 text-amber-400" />
+            <FastForward className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden md:inline">{isFrench ? 'Tester Expiration' : 'Test Expiration'}</span>
           </button>
 
@@ -201,6 +203,46 @@ export const TrialBanner: React.FC<TrialBannerProps> = ({
             <span>{isFrench ? 'Activer Forfait Annuel' : 'Upgrade to Annual Pro'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+
+      {/* 
+        VISUAL TRIAL PROGRESS BAR (Dedicated 24-Hour Progress Tracker)
+        Shows user's real-time progress through their 1-day free trial period
+      */}
+      <div
+        id="trial-progress-bar-container"
+        className="w-full bg-black/40 border-t border-white/10 px-4 py-1.5 backdrop-blur-xs"
+      >
+        <div className="max-w-7xl mx-auto space-y-1">
+          <div className="flex items-center justify-between text-[10px] font-mono text-white/80">
+            <span className="flex items-center space-x-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span>{isFrench ? 'Début de l’essai (0h)' : 'Trial Activated (0h)'}</span>
+            </span>
+            <span className="font-bold text-amber-300">
+              {progressPercent}% {isFrench ? 'utilisé' : 'used'} • {trialStatus.formattedRemaining} {isFrench ? 'restant' : 'remaining'}
+            </span>
+            <span className="text-white/70">
+              {isFrench ? 'Fin des 24 heures (Expiration)' : '24h Expiration'}
+            </span>
+          </div>
+
+          {/* Progress Bar Track */}
+          <div className="w-full h-2 rounded-full bg-slate-950/70 p-0.5 border border-white/15 overflow-hidden shadow-inner">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ease-out shadow-xs ${
+                trialStatus.isExpired
+                  ? 'bg-rose-500'
+                  : progressPercent > 85
+                  ? 'bg-linear-to-r from-amber-500 to-rose-500'
+                  : progressPercent > 60
+                  ? 'bg-linear-to-r from-emerald-400 via-amber-400 to-amber-500'
+                  : 'bg-linear-to-r from-emerald-500 via-teal-400 to-emerald-300'
+              }`}
+              style={{ width: `${Math.max(2, progressPercent)}%` }}
+            />
+          </div>
         </div>
       </div>
     </div>

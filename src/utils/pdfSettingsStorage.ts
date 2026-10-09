@@ -21,6 +21,7 @@ export interface PdfSettings {
   signatureDataUrl?: string;
   signDate: string;
   signerTitle: string;
+  printMarginPreset: 'standard' | 'compact' | 'wide';
 }
 
 export const DEFAULT_PDF_SETTINGS: PdfSettings = {
@@ -41,6 +42,7 @@ export const DEFAULT_PDF_SETTINGS: PdfSettings = {
   typedSignatureFont: 'cursive',
   signDate: new Date().toISOString().split('T')[0],
   signerTitle: 'Tax Preparer (CPA Certification)',
+  printMarginPreset: 'standard',
 };
 
 const STORAGE_KEY = 'tax_easy_pdf_custom_settings_v1';
@@ -53,6 +55,10 @@ export function loadPdfSettings(taxReturn?: AppTaxReturn): PdfSettings {
       return {
         ...DEFAULT_PDF_SETTINGS,
         ...parsed,
+        printMarginPreset:
+          parsed.printMarginPreset === 'compact' || parsed.printMarginPreset === 'wide'
+            ? parsed.printMarginPreset
+            : 'standard',
         enableDigitalSignature:
           parsed.enableDigitalSignature !== undefined
             ? Boolean(parsed.enableDigitalSignature)

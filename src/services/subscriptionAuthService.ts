@@ -333,7 +333,7 @@ export function signInUser(params: {
   if (!found) {
     return {
       success: false,
-      error: 'No account registered with this email address. Please Sign Up.',
+      error: 'No account registered with this email address. Please Sign Up for the 1-Day Free Trial.',
     };
   }
 

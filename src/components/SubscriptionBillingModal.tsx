@@ -136,7 +136,7 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
   };
 
   useEffect(() => {
-    if (!isOpen || activeTab !== 'signup' || paymentMethod !== 'paypal') {
+    if (!isOpen || (activeTab !== 'plans' && activeTab !== 'signup') || paymentMethod !== 'paypal') {
       return;
     }
 
@@ -221,7 +221,7 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [isOpen, activeTab, paymentMethod, paypalConfig, isFrench, signUpName, signUpEmail]);
+  }, [isOpen, activeTab, paymentMethod, paypalConfig, isFrench, currentUser, signUpName, signUpEmail]);
 
   useEffect(() => {
     if (isOpen) {
@@ -230,14 +230,19 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
       const trial = getTrialStatus(user);
 
       if (initialTab) {
-        setActiveTab(initialTab);
+        if (initialTab === 'trial') {
+          setActiveTab('signup');
+        } else {
+          setActiveTab(initialTab);
+        }
       } else if (trial.isExpired) {
-        // Expired trial automatically routes to plans/signup
-        setActiveTab('signup');
+        // Expired trial automatically routes to plans for upgrading
+        setActiveTab('plans');
       } else if (user && user.isSubscribed) {
         setActiveTab('overview');
       } else {
-        setActiveTab('trial');
+        // All new users default to the exclusive 1-Day Free Trial Sign Up
+        setActiveTab('signup');
       }
 
       setSignInError(null);
@@ -247,24 +252,34 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
     }
   }, [isOpen, initialTab]);
 
-  // Handle 1-Day Free Trial Registration
-  const handleTrialRegisterSubmit = (e: React.FormEvent) => {
+  // Handle Sign Up (Exclusive to 1-Day Free Trial Plan — prompts name, email, and password)
+  const handleSignUpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setTrialError(null);
+    setSignUpError(null);
 
-    if (trialPassword !== trialConfirmPassword) {
-      setTrialError(isFrench ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
+    if (signUpPassword !== signUpConfirmPassword) {
+      setSignUpError(isFrench ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
       return;
     }
-    if (trialPassword.length < 6) {
-      setTrialError(isFrench ? 'Le mot de passe doit comporter au moins 6 caractères.' : 'Password must be at least 6 characters.');
+    if (signUpPassword.length < 6) {
+      setSignUpError(
+        isFrench
+          ? 'Le mot de passe doit comporter au moins 6 caractères.'
+          : 'Password must be at least 6 characters.'
+      );
+      return;
+    }
+    if (!signUpName.trim() || !signUpEmail.trim()) {
+      setSignUpError(
+        isFrench ? 'Veuillez remplir tous les champs obligatoires.' : 'Please fill in all required fields.'
+      );
       return;
     }
 
     const res = registerWithFreeTrial({
-      name: trialName,
-      email: trialEmail,
-      password: trialPassword,
+      name: signUpName.trim(),
+      email: signUpEmail.trim(),
+      password: signUpPassword,
     });
 
     if (res.success && res.user) {
@@ -273,14 +288,17 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
       setActiveTab('overview');
       setFeedbackNotice(
         isFrench
-          ? 'Essai gratuit de 1 jour activé avec succès ! Profitez de toutes les fonctionnalités.'
-          : '1-Day Free Trial successfully activated! Enjoy full unrestricted access for 24 hours.'
+          ? 'Inscription réussie ! Votre essai gratuit de 1 jour (24 heures) est désormais actif.'
+          : 'Registration successful! Your 1-Day Free Trial (24 hours full access) is now active.'
       );
-      setTimeout(() => setFeedbackNotice(null), 4000);
+      setTimeout(() => setFeedbackNotice(null), 4500);
     } else {
-      setTrialError(res.error || 'Trial registration failed.');
+      setSignUpError(res.error || (isFrench ? 'Échec de l’inscription.' : 'Sign up registration failed.'));
     }
   };
+
+  // Backward-compatible alias for handleTrialRegisterSubmit
+  const handleTrialRegisterSubmit = handleSignUpSubmit;
 
   // Handle Sign In
   const handleSignInSubmit = (e: React.FormEvent) => {
@@ -298,31 +316,32 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
     }
   };
 
-  // Handle Sign Up with $29.99/Year Payment
-  const handleSignUpSubmit = async (e: React.FormEvent) => {
+  // Handle Upgrade to Unlimited Paid Pro Subscription ($29.99/Year)
+  const handleUpgradePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSignUpError(null);
-
-    if (signUpPassword !== signUpConfirmPassword) {
-      setSignUpError(isFrench ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
-      return;
-    }
-    if (signUpPassword.length < 6) {
-      setSignUpError(isFrench ? 'Le mot de passe doit comporter au moins 6 caractères.' : 'Password must be at least 6 characters.');
-      return;
-    }
-
     setIsProcessingPayment(true);
-    // Simulate payment gateway processing
+
     setTimeout(() => {
-      const result = signUpWithSubscription({
-        name: signUpName,
-        email: signUpEmail,
-        password: signUpPassword,
-        cardNumber,
-        cardExpiry,
-        cardCvc,
-      });
+      let result;
+      if (currentUser) {
+        result = upgradeUserToPaidSubscription({
+          cardNumber,
+          cardExpiry,
+          cardCvc,
+          planName: 'Tax Easy Filing Unlimited Pro — $29.99/Year',
+          price: 29.99,
+        });
+      } else {
+        result = signUpWithSubscription({
+          name: signUpName.trim() || 'Alex Morgan',
+          email: signUpEmail.trim() || 'alex.morgan@example.ca',
+          password: signUpPassword || 'Password2025!',
+          cardNumber,
+          cardExpiry,
+          cardCvc,
+        });
+      }
 
       setIsProcessingPayment(false);
 
@@ -337,9 +356,9 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
         );
         setTimeout(() => setFeedbackNotice(null), 4000);
       } else {
-        setSignUpError(result.error || 'Payment or registration failed.');
+        setSignUpError(result.error || (isFrench ? 'Échec du paiement.' : 'Payment or upgrade failed.'));
       }
-    }, 1200);
+    }, 1000);
   };
 
   // Handle Reset Password
@@ -450,6 +469,7 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
             {currentUser && (
               <button
                 type="button"
+                id="tab-btn-overview"
                 onClick={() => setActiveTab('overview')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeTab === 'overview'
@@ -461,33 +481,39 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
               </button>
             )}
 
+            {/* Sign Up Option: Exclusive to the 1-Day Free Trial */}
             <button
               type="button"
-              onClick={() => setActiveTab('trial')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
-                activeTab === 'trial'
+              id="tab-btn-signup"
+              onClick={() => setActiveTab('signup')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                activeTab === 'signup' || activeTab === 'trial'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>{isFrench ? 'Essai Gratuit 1 Jour' : '1-Day Free Trial'}</span>
+              <span>{isFrench ? 'S’inscrire (Essai gratuit 1 jour)' : 'Sign Up (1-Day Free Trial)'}</span>
             </button>
 
+            {/* Paid Plan / Upgrade to Pro */}
             <button
               type="button"
-              onClick={() => setActiveTab('signup')}
+              id="tab-btn-plans"
+              onClick={() => setActiveTab('plans')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'signup'
+                activeTab === 'plans'
                   ? 'bg-[#064e3b] text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {isFrench ? 'Abonnement Payant (29,99 $)' : 'Paid Plan ($29.99/Yr)'}
+              {isFrench ? 'Forfait Pro (29,99 $/an)' : 'Upgrade to Pro ($29.99/Yr)'}
             </button>
 
+            {/* Sign In */}
             <button
               type="button"
+              id="tab-btn-signin"
               onClick={() => setActiveTab('signin')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'signin'
@@ -736,36 +762,38 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
               );
             })()}
 
-            {/* VIEW: 1-DAY FREE TRIAL REGISTRATION */}
-            {activeTab === 'trial' && (
+            {/* VIEW: SIGN UP FLOW (EXCLUSIVE TO 1-DAY FREE TRIAL PLAN) */}
+            {(activeTab === 'signup' || activeTab === 'trial') && (
               <div className="space-y-4">
                 <div className="p-4 rounded-2xl bg-linear-to-r from-amber-500/15 via-emerald-500/15 to-teal-500/15 border border-amber-300 space-y-2">
                   <div className="flex items-center space-x-2">
                     <span className="p-1 rounded-md bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-                      1-DAY FREE TRIAL
+                      EXCLUSIVE SIGN UP OFFER
                     </span>
                     <span className="text-xs font-bold text-amber-900">
-                      {isFrench ? 'Aucune carte de crédit requise pour commencer' : 'No credit card required upfront'}
+                      {isFrench ? 'Aucune carte de crédit requise pour s’inscrire' : 'No credit card required to sign up'}
                     </span>
                   </div>
                   <h3 className="text-base font-extrabold text-[#0b1f3a]">
-                    {isFrench ? 'Activez votre essai gratuit de 24 heures' : 'Activate Your 24-Hour Free Trial'}
+                    {isFrench
+                      ? 'S’inscrire à l’essai gratuit de 1 jour'
+                      : 'Sign Up for 1-Day Free Trial'}
                   </h3>
                   <p className="text-xs text-slate-700 leading-relaxed">
                     {isFrench
-                      ? 'Tous les nouveaux utilisateurs bénéficient d’un accès complet gratuit pendant 24 heures pour préparer leurs déclarations T1, extraire leurs feuillets par IA et explorer toutes les fonctionnalités.'
-                      : 'Every new user receives 24 hours of unrestricted, complimentary access to prepare Canadian T1 tax returns, run AI OCR slip extraction, and test all premium features.'}
+                      ? 'L’inscription est exclusivement réservée à l’essai gratuit de 1 jour. Tous les nouveaux utilisateurs sont invités à compléter la création de leur compte (nom, courriel et mot de passe) pour profiter de 24 heures d’accès illimité sans aucun frais.'
+                      : 'Sign Up is exclusive to our 1-Day Free Trial plan. All new users are prompted to complete account registration (name, email, and password) to receive 24 hours of unrestricted, complimentary Canadian tax filing access.'}
                   </p>
                 </div>
 
-                {trialError && (
+                {signUpError && (
                   <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center space-x-2">
                     <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span>{trialError}</span>
+                    <span>{signUpError}</span>
                   </div>
                 )}
 
-                <form onSubmit={handleTrialRegisterSubmit} className="space-y-3.5">
+                <form onSubmit={handleSignUpSubmit} className="space-y-3.5">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       {isFrench ? 'Nom complet' : 'Full Name'}
@@ -774,8 +802,8 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                       <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        value={trialName}
-                        onChange={(e) => setTrialName(e.target.value)}
+                        value={signUpName}
+                        onChange={(e) => setSignUpName(e.target.value)}
                         placeholder="Alex Morgan"
                         className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
                         required
@@ -785,14 +813,14 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      {isFrench ? 'Courriel' : 'Email Address'}
+                      {isFrench ? 'Adresse courriel' : 'Email Address'}
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="email"
-                        value={trialEmail}
-                        onChange={(e) => setTrialEmail(e.target.value)}
+                        value={signUpEmail}
+                        onChange={(e) => setSignUpEmail(e.target.value)}
                         placeholder="taxpayer@example.ca"
                         className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
                         required
@@ -809,8 +837,8 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="password"
-                          value={trialPassword}
-                          onChange={(e) => setTrialPassword(e.target.value)}
+                          value={signUpPassword}
+                          onChange={(e) => setSignUpPassword(e.target.value)}
                           placeholder="••••••••••••"
                           className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
                           required
@@ -820,14 +848,14 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
 
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        {isFrench ? 'Confirmer' : 'Confirm Password'}
+                        {isFrench ? 'Confirmer le mot de passe' : 'Confirm Password'}
                       </label>
                       <div className="relative">
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="password"
-                          value={trialConfirmPassword}
-                          onChange={(e) => setTrialConfirmPassword(e.target.value)}
+                          value={signUpConfirmPassword}
+                          onChange={(e) => setSignUpConfirmPassword(e.target.value)}
                           placeholder="••••••••••••"
                           className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
                           required
@@ -838,27 +866,38 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
 
                   <button
                     type="submit"
+                    id="btn-submit-trial-signup"
                     className="w-full py-3 rounded-xl bg-linear-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2"
                   >
                     <Sparkles className="w-4 h-4 text-amber-200" />
                     <span>
                       {isFrench
-                        ? 'Activer mon essai gratuit de 1 jour (0,00 $)'
-                        : 'Activate 1-Day Free Trial ($0.00 CAD)'}
+                        ? 'Compléter l’inscription & démarrer l’essai gratuit (0,00 $)'
+                        : 'Complete Registration & Start 1-Day Free Trial ($0.00 CAD)'}
                     </span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </form>
 
-                <div className="pt-2 text-center text-xs text-slate-500 space-y-1">
+                <div className="pt-2 text-center text-xs text-slate-500 space-y-1.5">
                   <p>
-                    {isFrench ? 'Vous préférez vous abonner directement ?' : 'Ready to subscribe immediately?'}{' '}
+                    {isFrench ? 'Déjà inscrit ?' : 'Already have an account?'}{' '}
                     <button
                       type="button"
-                      onClick={() => setActiveTab('signup')}
+                      onClick={() => setActiveTab('signin')}
                       className="text-emerald-700 font-bold hover:underline cursor-pointer"
                     >
-                      {isFrench ? 'Forfait Annuel Pro (29,99 $/an)' : 'Annual Pro Plan ($29.99/Yr)'}
+                      {isFrench ? 'Se connecter' : 'Sign In'}
+                    </button>
+                  </p>
+                  <p>
+                    {isFrench ? 'Vous préférez vous abonner directement ?' : 'Prefer to subscribe directly?'}{' '}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('plans')}
+                      className="text-emerald-700 font-bold hover:underline cursor-pointer"
+                    >
+                      {isFrench ? 'Passer au Forfait Pro (29,99 $/an)' : 'Upgrade to Pro ($29.99/Yr)'}
                     </button>
                   </p>
                 </div>
@@ -944,32 +983,71 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
 
                 <div className="pt-2 text-center text-xs text-slate-500 space-y-2">
                   <p>
-                    {isFrench ? 'Pas encore abonné ?' : 'Don’t have an account?'}{' '}
+                    {isFrench ? 'Pas encore de compte ?' : 'Don’t have an account?'}{' '}
                     <button
                       type="button"
+                      id="btn-goto-signup"
                       onClick={() => setActiveTab('signup')}
                       className="text-emerald-700 font-bold hover:underline cursor-pointer"
                     >
-                      {isFrench ? 'S’inscrire (29,99 $/an)' : 'Sign Up for $29.99/Year'}
+                      {isFrench ? 'S’inscrire à l’essai gratuit de 1 jour' : 'Sign Up for 1-Day Free Trial'}
                     </button>
                   </p>
                 </div>
               </div>
             )}
 
-            {/* VIEW 3: SIGN UP FLOW (COLLECTS NAME, EMAIL, PASSWORD & REQUIRES $29.99/YEAR PAYMENT) */}
-            {activeTab === 'signup' && (
+            {/* VIEW 3: PRO PLANS & UPGRADE FLOW */}
+            {activeTab === 'plans' && (
               <div className="space-y-4">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
-                    {isFrench ? 'Créer un compte & S’abonner' : 'Sign Up & Activate Subscription'}
+                    {isFrench ? 'Passer au Forfait Pro Illimité' : 'Upgrade to Unlimited Pro'}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {isFrench
-                      ? 'L’accès complet à l’application nécessite un abonnement Pro à 29,99 $/an.'
-                      : 'Full app access requires the $29.99/Year unlimited Canadian tax filing subscription.'}
+                      ? 'Débloquez l’accès annuel illimité pour 29,99 $/an avec transmission NETFILE et coffre-fort fiscal.'
+                      : 'Unlock unlimited annual Canadian tax preparation and NETFILE filing for $29.99/Year.'}
                   </p>
                 </div>
+
+                {/* Account Context Notice */}
+                {currentUser ? (
+                  <div className="p-3 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-2">
+                      <User className="w-4 h-4 text-emerald-700" />
+                      <span className="text-slate-700">
+                        {isFrench ? 'Compte à mettre à niveau :' : 'Upgrading Account:'}{' '}
+                        <strong className="text-slate-900">{currentUser.name}</strong> ({currentUser.email})
+                      </span>
+                    </div>
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                      {currentUser.isTrial ? 'Trial User' : 'Standard'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
+                    <span>
+                      {isFrench
+                        ? 'Nouveau sur l’application ? L’inscription est réservée à l’essai gratuit : '
+                        : 'New user? Sign Up is exclusive to our 1-Day Free Trial: '}
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('signup')}
+                        className="font-bold underline text-amber-950 cursor-pointer"
+                      >
+                        {isFrench ? 'S’inscrire ici (Essai 1 jour)' : 'Sign Up Here (1-Day Free Trial)'}
+                      </button>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('signin')}
+                      className="text-[11px] font-bold text-emerald-800 underline ml-2 cursor-pointer"
+                    >
+                      {isFrench ? 'Se connecter' : 'Sign In'}
+                    </button>
+                  </div>
+                )}
 
                 {/* Plan Highlights Card */}
                 <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl flex items-center justify-between text-xs">
@@ -992,82 +1070,47 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                   </div>
                 )}
 
-                <form onSubmit={handleSignUpSubmit} className="space-y-3.5">
-                  {/* Step 1: Account Information */}
-                  <div className="space-y-2.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                      1. {isFrench ? 'Renseignements de l’utilisateur' : 'Account Credentials'}
-                    </span>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        {isFrench ? 'Nom complet' : 'Full Name'}
-                      </label>
-                      <div className="relative">
-                        <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={signUpName}
-                          onChange={(e) => setSignUpName(e.target.value)}
-                          placeholder="Alex Morgan"
-                          className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
-                          required
-                        />
+                <form onSubmit={handleUpgradePaymentSubmit} className="space-y-3.5">
+                  {/* If not logged in, prompt for credentials / billing email */}
+                  {!currentUser && (
+                    <div className="space-y-2.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        {isFrench ? 'Coordonnées de Facturation' : 'Billing Account Contact'}
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            {isFrench ? 'Nom complet' : 'Full Name'}
+                          </label>
+                          <input
+                            type="text"
+                            value={signUpName}
+                            onChange={(e) => setSignUpName(e.target.value)}
+                            placeholder="Alex Morgan"
+                            className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            {isFrench ? 'Courriel' : 'Email Address'}
+                          </label>
+                          <input
+                            type="email"
+                            value={signUpEmail}
+                            onChange={(e) => setSignUpEmail(e.target.value)}
+                            placeholder="alex.morgan@example.ca"
+                            className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
+                          />
+                        </div>
                       </div>
                     </div>
+                  )}
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        {isFrench ? 'Courriel' : 'Email Address'}
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="email"
-                          value={signUpEmail}
-                          onChange={(e) => setSignUpEmail(e.target.value)}
-                          placeholder="alex.morgan@example.ca"
-                          className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          {isFrench ? 'Mot de passe' : 'Password'}
-                        </label>
-                        <input
-                          type="password"
-                          value={signUpPassword}
-                          onChange={(e) => setSignUpPassword(e.target.value)}
-                          placeholder="At least 6 chars"
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          {isFrench ? 'Confirmer' : 'Confirm'}
-                        </label>
-                        <input
-                          type="password"
-                          value={signUpConfirmPassword}
-                          onChange={(e) => setSignUpConfirmPassword(e.target.value)}
-                          placeholder="Repeat password"
-                          className="w-full p-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Step 2: Payment Section ($29.99/Year Required) */}
+                  {/* Payment Section ($29.99/Year Pro) */}
                   <div className="space-y-2.5 pt-2 border-t border-slate-200">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                        2. {isFrench ? 'Paiement sécurisé (29,99 $ CAD)' : 'Payment Information ($29.99 CAD)'}
+                        {isFrench ? 'Paiement sécurisé (29,99 $ CAD)' : 'Payment Method ($29.99 CAD)'}
                       </span>
                       <span className="text-[10px] text-emerald-800 font-mono font-bold flex items-center space-x-1">
                         <Lock className="w-3 h-3 text-emerald-600" />
@@ -1154,7 +1197,6 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                       </>
                     ) : (
                       <div className="space-y-3">
-                        {/* Plan selection radio buttons for createSubscription query */}
                         <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-xl">
                           <label
                             className={`flex flex-col p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
@@ -1226,20 +1268,12 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                           </div>
                           <p className="text-[11px] text-blue-900 leading-normal">
                             {isFrench
-                              ? 'Abonnement récurrent sécurisé via le bouton officiel PayPal. Prélèvement automatique sécurisé.'
-                              : 'Secure recurring subscription via the official PayPal button. Safe automated billing.'}
+                              ? 'Abonnement récurrent sécurisé via le bouton officiel PayPal.'
+                              : 'Secure recurring subscription via the official PayPal button.'}
                           </p>
-                          <div className="text-[10px] text-blue-700 font-mono flex items-center justify-between">
-                            <span>
-                              Plan ID: {paypalPlanType === 'yearly'
-                                ? (paypalConfig?.yearlyPlanId || 'P-4AN642530G363490GNLDLQWI')
-                                : (paypalConfig?.monthlyPlanId || 'P-4AN642530G363490GNLDLQWI')}
-                            </span>
-                            <span className="text-emerald-700 font-bold">Vault Active</span>
-                          </div>
                         </div>
 
-                        {/* Official PayPal Button Container matching both selectors */}
+                        {/* Official PayPal Button Container */}
                         <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col items-center justify-center min-h-[58px]">
                           <div
                             id="paypal-button-container"
@@ -1270,29 +1304,29 @@ export const SubscriptionBillingModal: React.FC<SubscriptionBillingModalProps> =
                   {paymentMethod === 'card' && (
                     <button
                       type="submit"
-                      id="btn-submit-signup-payment"
+                      id="btn-submit-upgrade-payment"
                       disabled={isProcessingPayment}
                       className="w-full py-3 rounded-xl text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 mt-2 bg-[#064e3b] hover:bg-[#054030]"
                     >
                       <Lock className="w-4 h-4 text-white" />
                       <span>
                         {isProcessingPayment
-                          ? (isFrench ? 'Traitement du paiement sécurisé...' : 'Processing Payment...')
-                          : (isFrench ? 'Payer 29,99 $ & Déverrouiller l’Application' : 'Pay $29.99 CAD & Grant Access')}
+                          ? (isFrench ? 'Traitement du paiement...' : 'Processing Payment...')
+                          : (isFrench ? 'Payer 29,99 $ & Activer le Forfait Pro' : 'Pay $29.99 CAD & Activate Pro Access')}
                       </span>
                     </button>
                   )}
                 </form>
 
-                <div className="text-center text-xs text-slate-500">
+                <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100">
                   <p>
-                    {isFrench ? 'Déjà un compte ?' : 'Already have an account?'}{' '}
+                    {isFrench ? 'Vous souhaitez d’abord essayer ?' : 'Want to try before subscribing?'}{' '}
                     <button
                       type="button"
-                      onClick={() => setActiveTab('signin')}
+                      onClick={() => setActiveTab('signup')}
                       className="text-emerald-700 font-bold hover:underline cursor-pointer"
                     >
-                      {isFrench ? 'Se connecter' : 'Sign In'}
+                      {isFrench ? 'S’inscrire à l’essai gratuit de 1 jour' : 'Sign Up for 1-Day Free Trial'}
                     </button>
                   </p>
                 </div>

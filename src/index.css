@@ -128,6 +128,113 @@
     }
   }
 
+  /* 
+    Custom top and bottom margin settings specifically for the 'OFFICIAL' document mode.
+    Provides extra clearance (30mm top, 28mm bottom) to prevent injected header & footer
+    from overlapping with document content.
+  */
+  @page official {
+    size: letter portrait;
+    margin-top: 30mm;
+    margin-bottom: 28mm;
+    margin-left: 15mm;
+    margin-right: 15mm;
+
+    @top-center {
+      content: "OFFICIAL TAX ASSESSMENT — GOVERNMENT OF CANADA • CRA";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 8.5pt;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      color: #064e3b;
+      border-bottom: 1pt solid #064e3b;
+      padding-bottom: 4pt;
+    }
+
+    @top-left {
+      content: "FORM T1 GENERAL • OFFICIAL FILED COPY";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #0b1f3a;
+      border-bottom: 1pt solid #064e3b;
+      padding-bottom: 4pt;
+    }
+
+    @top-right {
+      content: "LEGAL ARCHIVE • SEC. 230(4)";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #064e3b;
+      border-bottom: 1pt solid #064e3b;
+      padding-bottom: 4pt;
+    }
+
+    @bottom-left {
+      content: "Official CRA Certified Tax Summary • Retain for 6 Years for CRA Audit Compliance";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7pt;
+      color: #475569;
+      border-top: 1pt solid #064e3b;
+      padding-top: 5pt;
+    }
+
+    @bottom-center {
+      content: "Certified Canadian Tax Return";
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7pt;
+      color: #064e3b;
+      font-weight: 600;
+      border-top: 1pt solid #064e3b;
+      padding-top: 5pt;
+    }
+
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 7.5pt;
+      font-weight: 800;
+      color: #064e3b;
+      border-top: 1pt solid #064e3b;
+      padding-top: 5pt;
+    }
+  }
+
+  /* Apply @page official to 'OFFICIAL' document mode */
+  body[data-watermark-text="OFFICIAL"],
+  html[data-watermark-text="OFFICIAL"],
+  main[data-watermark-text="OFFICIAL"],
+  .document-mode-official,
+  [data-document-mode="OFFICIAL"] {
+    page: official;
+  }
+
+  /* Specific clearance for 'OFFICIAL' document mode to ensure injected header and footer don't overlap */
+  body[data-watermark-text="OFFICIAL"] main,
+  html[data-watermark-text="OFFICIAL"] main,
+  main[data-watermark-text="OFFICIAL"],
+  body[data-watermark-text="OFFICIAL"] #step-review-view,
+  body[data-watermark-text="OFFICIAL"] #step-calculation-view {
+    padding-top: 12mm !important;
+    padding-bottom: 15mm !important;
+  }
+
+  body[data-watermark-text="OFFICIAL"] .print-official-header,
+  body[data-watermark-text="OFFICIAL"] #print-official-tax-summary-header {
+    margin-top: 0 !important;
+    margin-bottom: 20pt !important;
+    padding-bottom: 10pt !important;
+    border-bottom: 2pt solid #064e3b !important;
+  }
+
+  body[data-watermark-text="OFFICIAL"] .print-official-footer,
+  body[data-watermark-text="OFFICIAL"] .print-official-tax-summary-footer {
+    margin-top: 24pt !important;
+    padding-top: 10pt !important;
+    border-top: 1.5pt solid #064e3b !important;
+  }
+
   /* Reset body and html container constraints */
   html, body {
     background: #ffffff !important;

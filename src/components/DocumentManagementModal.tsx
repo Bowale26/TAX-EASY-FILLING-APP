@@ -36,6 +36,9 @@ import {
   Eraser,
   Check,
   Type,
+  Layout,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {
   ManagedTaxDocument,
@@ -268,6 +271,7 @@ export const DocumentManagementModal: React.FC<DocumentManagementModalProps> = (
       signatureDataUrl: isDigitalSigEnabled ? pdfSettings.signatureDataUrl : undefined,
       signatureName: isDigitalSigEnabled ? pdfSettings.typedSignatureText : undefined,
       signatureDate: pdfSettings.signDate,
+      printMarginPreset: pdfSettings.printMarginPreset,
       preparerId: effectivePreparerId,
       preparerName: pdfSettings.typedSignatureText || 'Alex Morgan, CPA',
     });
@@ -1725,6 +1729,153 @@ export const DocumentManagementModal: React.FC<DocumentManagementModalProps> = (
                       </p>
                     </div>
                   )}
+                </div>
+
+                {/* ------------------------------------------------------- */}
+                {/* 4. PRINT MARGIN PRESETS (STANDARD, COMPACT, WIDE) */}
+                {/* ------------------------------------------------------- */}
+                <div
+                  id="pdf-settings-margin-presets-card"
+                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <div className="flex items-center space-x-2 text-[#064e3b] font-bold text-sm">
+                        <Layout className="w-4 h-4 text-emerald-700" />
+                        <span>
+                          {isFrench
+                            ? '4. Marges d’Impression & Préréglages de Format PDF'
+                            : '4. Print Margin Presets for Generated PDF Returns'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {isFrench
+                          ? 'Basculez entre les préréglages de marges Standard, Compact et Large pour optimiser la densité des pages ou l’archivage physique.'
+                          : 'Toggle between Standard, Compact, and Wide print margin presets to optimize document density, readability, or formal binding.'}
+                      </p>
+                    </div>
+
+                    <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                      {pdfSettings.printMarginPreset?.toUpperCase() || 'STANDARD'}
+                    </span>
+                  </div>
+
+                  {/* 3 Preset Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {[
+                      {
+                        id: 'compact' as const,
+                        nameEn: 'Compact',
+                        nameFr: 'Compact',
+                        marginMm: '8mm (~0.31")',
+                        icon: Minimize2,
+                        badgeEn: 'Maximum Density',
+                        badgeFr: 'Densité Maximale',
+                        descEn: 'Narrow margins to maximize content per page, reducing total page count and paper consumption.',
+                        descFr: 'Marges réduites pour maximiser le contenu par page et limiter le nombre total de feuilles imprimées.',
+                      },
+                      {
+                        id: 'standard' as const,
+                        nameEn: 'Standard',
+                        nameFr: 'Standard',
+                        marginMm: '14mm (~0.55")',
+                        icon: Layout,
+                        badgeEn: 'CRA Recommended',
+                        badgeFr: 'Recommandé ARC',
+                        descEn: 'Balanced proportions with optimal white space, certified for CRA official filing, client presentation, and digital viewing.',
+                        descFr: 'Équilibre parfait pour la présentation officielle de l’ARC, la lecture numérique et les déclarations d’impôt clients.',
+                      },
+                      {
+                        id: 'wide' as const,
+                        nameEn: 'Wide',
+                        nameFr: 'Large',
+                        marginMm: '20mm (~0.79")',
+                        icon: Maximize2,
+                        badgeEn: 'Binding & Archival',
+                        badgeFr: 'Reliure & Archive',
+                        descEn: 'Generous gutter margins ideal for hole-punching, binder folders, physical accountant annotations, and legal archiving.',
+                        descFr: 'Marges généreuses idéales pour perforation, classeurs d’audit, annotations comptables et conservation LIR de 6 ans.',
+                      },
+                    ].map((preset) => {
+                      const isSelected = (pdfSettings.printMarginPreset || 'standard') === preset.id;
+                      const IconComp = preset.icon;
+
+                      return (
+                        <button
+                          key={preset.id}
+                          id={`preset-margin-${preset.id}`}
+                          type="button"
+                          onClick={() => {
+                            setPdfSettings((prev) => {
+                              const updated: PdfSettings = {
+                                ...prev,
+                                printMarginPreset: preset.id,
+                              };
+                              savePdfSettings(updated);
+                              return updated;
+                            });
+                          }}
+                          className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group ${
+                            isSelected
+                              ? 'bg-emerald-50/60 border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
+                              : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <div
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                                    isSelected
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-slate-200 text-slate-700 group-hover:bg-slate-300'
+                                  }`}
+                                >
+                                  <IconComp className="w-4 h-4" />
+                                </div>
+                                <span className="font-extrabold text-sm text-slate-900">
+                                  {isFrench ? preset.nameFr : preset.nameEn}
+                                </span>
+                              </div>
+
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  isSelected
+                                    ? 'bg-emerald-200 text-emerald-950 font-bold'
+                                    : 'bg-slate-200 text-slate-600'
+                                }`}
+                              >
+                                {isFrench ? preset.badgeFr : preset.badgeEn}
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] font-mono font-bold text-slate-700 bg-white/80 px-2 py-1 rounded border border-slate-200/80">
+                              {isFrench ? 'Marge :' : 'Margin :'} <span className="text-[#064e3b]">{preset.marginMm}</span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              {isFrench ? preset.descFr : preset.descEn}
+                            </p>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-slate-500">
+                              {isSelected ? (isFrench ? '✓ Sélectionné' : '✓ Active Preset') : (isFrench ? 'Cliquer pour choisir' : 'Click to select')}
+                            </span>
+                            <span
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                isSelected
+                                  ? 'border-emerald-600 bg-emerald-600 text-white'
+                                  : 'border-slate-300 bg-white'
+                              }`}
+                            >
+                              {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* BOTTOM ACTION BAR */}

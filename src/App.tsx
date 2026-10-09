@@ -215,7 +215,7 @@ export default function App() {
   const [isAuditDashboardOpen, setIsAuditDashboardOpen] = useState<boolean>(false);
   const [isClientFilesOpen, setIsClientFilesOpen] = useState<boolean>(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState<boolean>(false);
-  const [subscriptionInitialTab, setSubscriptionInitialTab] = useState<'overview' | 'signin' | 'signup' | 'trial'>('overview');
+  const [subscriptionInitialTab, setSubscriptionInitialTab] = useState<'overview' | 'signin' | 'signup' | 'reset' | 'plans' | 'trial'>('overview');
   const [isFirebaseOpen, setIsFirebaseOpen] = useState<boolean>(false);
   const [autoSavePulse, setAutoSavePulse] = useState<number>(0);
 
@@ -613,6 +613,23 @@ export default function App() {
     window.addEventListener('beforeprint', updatePrintTimestamp);
     return () => window.removeEventListener('beforeprint', updatePrintTimestamp);
   }, []);
+
+  // Sync document mode ('OFFICIAL' vs 'DRAFT') and watermark attributes to DOM root for print stylesheet
+  useEffect(() => {
+    const wmText = verificationData?.watermarkText || 'DRAFT';
+    const isOfficialMode = wmText === 'OFFICIAL';
+    document.body.setAttribute('data-watermark-text', wmText);
+    document.documentElement.setAttribute('data-watermark-text', wmText);
+    document.body.setAttribute('data-document-mode', wmText);
+    document.documentElement.setAttribute('data-document-mode', wmText);
+    document.body.setAttribute('data-include-watermark', includeWatermark ? 'true' : 'false');
+    document.documentElement.setAttribute('data-include-watermark', includeWatermark ? 'true' : 'false');
+    if (isOfficialMode) {
+      document.body.classList.add('document-mode-official');
+    } else {
+      document.body.classList.remove('document-mode-official');
+    }
+  }, [verificationData?.watermarkText, includeWatermark]);
 
   // Initialize Service Worker and establish initial sync state
   useEffect(() => {
@@ -1164,7 +1181,7 @@ export default function App() {
             <button
               id="header-subscription-btn"
               onClick={() => {
-                setSubscriptionInitialTab(trialStatus.isExpired ? 'signup' : 'overview');
+                setSubscriptionInitialTab(trialStatus.isExpired ? 'plans' : 'overview');
                 setIsSubscriptionOpen(true);
               }}
               title={
@@ -1627,7 +1644,7 @@ export default function App() {
         <TrialBanner
           currentUser={currentAuthUser}
           onOpenSubscription={() => {
-            setSubscriptionInitialTab(trialStatus.isExpired ? 'signup' : 'overview');
+            setSubscriptionInitialTab(trialStatus.isExpired ? 'plans' : 'overview');
             setIsSubscriptionOpen(true);
           }}
           language={language}
@@ -1639,16 +1656,17 @@ export default function App() {
 
         {/* Step Body Content with Trial Restriction Paywall */}
         <main
-          className="flex-1 p-4 sm:p-8 max-w-6xl w-full mx-auto"
+          className={`flex-1 p-4 sm:p-8 max-w-6xl w-full mx-auto ${verificationData?.watermarkText === 'OFFICIAL' ? 'document-mode-official' : ''}`}
           data-include-watermark={includeWatermark ? 'true' : 'false'}
           data-watermark-text={verificationData?.watermarkText || 'DRAFT'}
+          data-document-mode={verificationData?.watermarkText || 'DRAFT'}
         >
           {/* If the 1-Day Free Trial has expired and user lacks paid subscription, restrict access */}
           {trialStatus.isExpired && !trialStatus.hasPaidSubscription ? (
             <TrialExpiredPaywall
               currentUser={currentAuthUser}
               onOpenSubscriptionModal={() => {
-                setSubscriptionInitialTab('signup');
+                setSubscriptionInitialTab('plans');
                 setIsSubscriptionOpen(true);
               }}
               language={language}
